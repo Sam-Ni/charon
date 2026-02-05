@@ -235,7 +235,6 @@ impl<'tcx, 'ctx> ItemTransCtx<'tcx, 'ctx> {
             }
 
             hax::TyKind::Dynamic(dyn_binder, region) => {
-                self.check_no_monomorphize(span)?;
                 // Translate the region outside the binder.
                 let region = self.translate_region(span, region)?;
 
@@ -259,11 +258,19 @@ impl<'tcx, 'ctx> ItemTransCtx<'tcx, 'ctx> {
                     if self.trait_is_dyn_compatible(&trait_predicate.trait_ref.def_id)? {
                         // Ensure the vtable type is translated. The first predicate is the one that
                         // can have methods, i.e. a vtable.
-                        let _: TypeDeclId = self.register_item(
-                            span,
-                            &trait_predicate.trait_ref,
-                            TransItemSourceKind::VTable,
-                        );
+                        if self.monomorphize() {
+                            let item_src = TransItemSource::polymorphic(
+                                &trait_predicate.trait_ref.def_id,
+                                TransItemSourceKind::VTable,
+                            );
+                            self.register_item_no_solve(span, item_src)?;
+                        } else {
+                            let _: TypeDeclId = self.register_item(
+                                span,
+                                &trait_predicate.trait_ref,
+                                TransItemSourceKind::VTable,
+                            );
+                        }
                     }
                 }
                 TyKind::DynTrait(DynPredicate { binder })

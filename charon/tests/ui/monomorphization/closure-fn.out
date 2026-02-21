@@ -66,21 +66,6 @@ pub trait Fn<Self, Args>
     vtable: core::ops::function::Fn::{vtable}
 }
 
-// Full name: test_crate::main::closure
-struct closure<'_0, '_1> {
-  &'_0 u8,
-  &'_1 u8,
-}
-
-pub fn core::ops::function::Fn::call<'_0>(@1: &'_0 closure<'_, '_>, @2: (u8, u8)) -> u8
-= <opaque>
-
-pub fn core::ops::function::FnMut::call_mut<'_0>(@1: &'_0 mut closure<'_, '_>, @2: (u8, u8)) -> u8
-= <opaque>
-
-pub fn core::ops::function::FnOnce::call_once(@1: closure<'_, '_>, @2: (u8, u8)) -> u8
-= <opaque>
-
 fn UNIT_METADATA()
 {
     let _0: (); // return
@@ -90,6 +75,12 @@ fn UNIT_METADATA()
 }
 
 const UNIT_METADATA: () = @Fun1()
+
+// Full name: test_crate::main::closure
+struct closure<'_0, '_1> {
+  &'_0 u8,
+  &'_1 u8,
+}
 
 // Full name: test_crate::apply_to::<closure<'_, '_>>
 fn apply_to::<closure<'_, '_>><'_0>(@1: &'_0 closure<'_, '_>) -> u8

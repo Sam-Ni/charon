@@ -1571,6 +1571,77 @@ impl ItemTransCtx<'_, '_> {
         let self_impl_ref = self.translate_trait_impl_ref(span, def.this(), impl_kind)?;
         let self_predicate_kind = TraitRefKind::TraitImpl(self_impl_ref.clone());
 
+        // In monomorphization mode, trait declarations intentionally skip methods. In this case,
+        // resolve the defaulted method directly from the source trait item.
+        if self.monomorphize_mode() {
+            let trait_def = self.poly_hax_def(&trait_pred.trait_ref.def_id)?;
+            let hax::FullDefKind::Trait { items, .. } = trait_def.kind() else {
+                unreachable!()
+            };
+            let assoc_method = items
+                .iter()
+                .filter(|item| matches!(item.kind, hax::AssocKind::Fn { .. }))
+                .find_map(|item| {
+                    self.t_ctx
+                        .translate_trait_item_name(&item.def_id)
+                        .ok()
+                        .filter(|name| name == &method_name)
+                        .map(|_| item)
+                });
+            let Some(assoc_method) = assoc_method else {
+                raise_error!(
+                    self,
+                    span,
+                    "Could not find a method with name \
+                    `{method_name}` in trait `{:?}`",
+                    trait_pred.trait_ref.def_id,
+                )
+            };
+
+            let item = trait_pred
+                .trait_ref
+                .with_def_id(self.hax_state(), &assoc_method.def_id);
+            let method_src = TransItemSource::monomorphic(&item, TransItemSourceKind::Fun);
+            let method_span = self.def_span(&assoc_method.def_id);
+            let method_id: FunDeclId = self.register_no_enqueue(method_span, &method_src);
+            let ItemRef::Fun(fun_decl) = self.get_or_translate(method_id.into())? else {
+                panic!()
+            };
+            let mut fun_decl = fun_decl.clone();
+            // Don't keep this helper declaration around: we only need it as a template for the
+            // generated impl method.
+            let _ = self.translated.fun_decls.remove(method_id);
+            fun_decl.def_id = def_id;
+            fun_decl.item_meta = ItemMeta {
+                name: item_meta.name,
+                opacity: item_meta.opacity,
+                is_local: item_meta.is_local,
+                span: item_meta.span,
+                source_text: fun_decl.item_meta.source_text,
+                attr_info: fun_decl.item_meta.attr_info,
+                lang_item: fun_decl.item_meta.lang_item,
+            };
+            fun_decl.src = if let ItemSource::TraitDecl {
+                trait_ref,
+                item_name,
+                ..
+            } = fun_decl.src
+            {
+                ItemSource::TraitImpl {
+                    impl_ref: self_impl_ref,
+                    trait_ref,
+                    item_name,
+                    reuses_default: true,
+                }
+            } else {
+                unreachable!()
+            };
+            if !item_meta.opacity.is_transparent() {
+                fun_decl.body = Body::Opaque;
+            }
+            return Ok(fun_decl);
+        }
+
         // Build a reference to the original declared method.
         let ItemRef::TraitDecl(tdecl) = self.get_or_translate(implemented_trait.id.into())? else {
             panic!()

@@ -73,30 +73,6 @@ pub trait Fn<Self, Args, Self_Clause1_Clause1_Output>
     vtable: core::ops::function::Fn::{vtable}
 }
 
-struct test_crate::main::closure<'_0> {
-  &'_0 u8,
-}
-
-pub fn core::ops::function::Fn::call<'_0>(@1: &'_0 test_crate::main::closure<'_>, @2: (u8,)) -> u8
-= <opaque>
-
-struct test_crate::main::closure#1<'_0> {
-  &'_0 mut u8,
-}
-
-pub fn core::ops::function::FnMut::call_mut<'_0>(@1: &'_0 mut test_crate::main::closure#1<'_>, @2: (u8,)) -> u8
-= <opaque>
-
-pub fn core::ops::function::FnMut::call_mut<'_0>(@1: &'_0 mut test_crate::main::closure<'_>, @2: (u8,)) -> u8
-= <opaque>
-
-struct test_crate::main::closure#2 {
-  Thing,
-}
-
-pub fn core::ops::function::FnOnce::call_once(@1: test_crate::main::closure#2, @2: (u8,)) -> u8
-= <opaque>
-
 fn UNIT_METADATA()
 {
     let _0: (); // return
@@ -106,6 +82,10 @@ fn UNIT_METADATA()
 }
 
 const UNIT_METADATA: () = @Fun1()
+
+struct test_crate::main::closure<'_0> {
+  &'_0 u8,
+}
 
 // Full name: test_crate::apply_to_zero::<test_crate::main::closure<'_>>
 fn apply_to_zero::<test_crate::main::closure<'_>>(@1: test_crate::main::closure<'_>) -> u8
@@ -126,6 +106,10 @@ fn apply_to_zero::<test_crate::main::closure<'_>>(@1: test_crate::main::closure<
     return
 }
 
+struct test_crate::main::closure#1<'_0> {
+  &'_0 mut u8,
+}
+
 // Full name: test_crate::apply_to_zero_mut::<test_crate::main::closure#1<'_>>
 fn apply_to_zero_mut::<test_crate::main::closure#1<'_>>(@1: test_crate::main::closure#1<'_>) -> u8
 {
@@ -143,6 +127,10 @@ fn apply_to_zero_mut::<test_crate::main::closure#1<'_>>(@1: test_crate::main::cl
     storage_dead(_2)
     conditional_drop[{impl#4}<'15>] f_1
     return
+}
+
+struct test_crate::main::closure#2 {
+  Thing,
 }
 
 // Full name: test_crate::apply_to_zero_once::<test_crate::main::closure#2>

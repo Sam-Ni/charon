@@ -57,9 +57,6 @@ struct closure {
   NotCopy,
 }
 
-pub fn core::ops::function::FnOnce::call_once(@1: closure, @2: (u8,)) -> u8
-= <opaque>
-
 // Full name: test_crate::apply_to_zero_once::<closure>
 fn apply_to_zero_once::<closure>(@1: closure) -> u8
 {

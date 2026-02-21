@@ -576,10 +576,33 @@ impl<'tcx, 'ctx> ItemTransCtx<'tcx, 'ctx> {
             // Trait method
             Some(trait_ref) => {
                 let name = self.t_ctx.translate_trait_item_name(&item.def_id)?;
-                let method_decl_id = *fun_item
+                let mut method_decl_id = *fun_item
                     .id
                     .as_regular()
                     .expect("methods are not builtin functions");
+
+                // In monomorphization mode and with `--start-from`, impl items may not be
+                // translated before we encounter a default trait method call. In this case,
+                // eagerly materialize the corresponding `DefaultedMethod` item for the concrete impl.
+                if self.monomorphize_mode()
+                    && let TraitRefKind::TraitImpl(impl_ref) = &trait_ref.kind
+                    && item
+                        .def_id
+                        .parent(self.hax_state_with_id())
+                        .is_some_and(|parent| matches!(parent.kind, hax::DefKind::Trait { .. }))
+                {
+                    let impl_item_src =
+                        self.t_ctx.reverse_id_map[&ItemId::TraitImpl(impl_ref.id)].clone();
+                    let RustcItem::Mono(impl_item) = &impl_item_src.item else {
+                        unreachable!()
+                    };
+                    let method_src = TransItemSource::monomorphic(
+                        impl_item,
+                        TransItemSourceKind::DefaultedMethod(TraitImplSource::Normal, name),
+                    );
+                    method_decl_id = self.register_and_enqueue(span, method_src);
+                }
+
                 self.mark_method_as_used(trait_ref.trait_decl_ref.skip_binder.id, name);
                 FnPtrKind::Trait(trait_ref.move_under_binder(), name, method_decl_id)
             }

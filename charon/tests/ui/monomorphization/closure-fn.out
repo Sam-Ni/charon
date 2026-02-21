@@ -72,16 +72,13 @@ struct closure<'_0, '_1> {
   &'_1 u8,
 }
 
-// Full name: core::ops::function::Fn::call
-pub fn call<'_0>(@1: &'_0 closure<'_, '_>, @2: (u8, u8)) -> u8
+pub fn core::ops::function::Fn::call<'_0>(@1: &'_0 closure<'_, '_>, @2: (u8, u8)) -> u8
 = <opaque>
 
-// Full name: core::ops::function::FnMut::call_mut
-pub fn call_mut<'_0>(@1: &'_0 mut closure<'_, '_>, @2: (u8, u8)) -> u8
+pub fn core::ops::function::FnMut::call_mut<'_0>(@1: &'_0 mut closure<'_, '_>, @2: (u8, u8)) -> u8
 = <opaque>
 
-// Full name: core::ops::function::FnOnce::call_once
-pub fn call_once(@1: closure<'_, '_>, @2: (u8, u8)) -> u8
+pub fn core::ops::function::FnOnce::call_once(@1: closure<'_, '_>, @2: (u8, u8)) -> u8
 = <opaque>
 
 fn UNIT_METADATA()
@@ -220,6 +217,85 @@ fn main()
     storage_dead(f_3)
     storage_dead(z_2)
     storage_dead(v_1)
+    return
+}
+
+// Full name: test_crate::main::{impl#0}::call_once
+fn {impl#0}::call_once<'_0, '_1>(@1: closure<'_0, '_1>, @2: (u8, u8)) -> u8
+{
+    let _0: u8; // return
+    let _1: closure<'_0, '_1>; // arg #1
+    let _2: (u8, u8); // arg #2
+    let _3: &'1 mut closure<'_0, '_1>; // anonymous local
+
+    storage_live(_3)
+    _3 = &mut _1
+    _0 = {impl#1}<'_0, '_1>::call_mut<'7>(move _3, move _2)
+    drop[{impl#1}<'_0, '_1>] _1
+    return
+}
+
+// Full name: test_crate::main::{impl#2}::call
+fn {impl#2}::call<'_0, '_1, '_2>(@1: &'_2 closure<'_0, '_1>, @2: (u8, u8)) -> u8
+{
+    let _0: u8; // return
+    let _1: &'1 closure<'_0, '_1>; // arg #1
+    let tupled_args_2: (u8, u8); // arg #2
+    let x_3: u8; // local
+    let y_4: u8; // local
+    let _5: u8; // anonymous local
+    let _6: u8; // anonymous local
+    let _7: u8; // anonymous local
+    let _8: u8; // anonymous local
+    let _9: u8; // anonymous local
+    let _10: u8; // anonymous local
+    let _11: u8; // anonymous local
+    let _12: u8; // anonymous local
+    let _13: u8; // anonymous local
+
+    storage_live(x_3)
+    storage_live(y_4)
+    storage_live(_9)
+    storage_live(_11)
+    storage_live(_13)
+    x_3 = move tupled_args_2.0
+    y_4 = move tupled_args_2.1
+    storage_live(_5)
+    storage_live(_6)
+    storage_live(_7)
+    _7 = copy (*((*_1)).0)
+    storage_live(_8)
+    _8 = copy x_3
+    _9 = copy _7 panic.+ copy _8
+    _6 = move _9
+    storage_dead(_8)
+    storage_dead(_7)
+    storage_live(_10)
+    _10 = copy y_4
+    _11 = copy _6 panic.+ copy _10
+    _5 = move _11
+    storage_dead(_10)
+    storage_dead(_6)
+    storage_live(_12)
+    _12 = copy (*((*_1)).1)
+    _13 = copy _5 panic.+ copy _12
+    _0 = move _13
+    storage_dead(_12)
+    storage_dead(_5)
+    return
+}
+
+// Full name: test_crate::main::{impl#1}::call_mut
+fn {impl#1}::call_mut<'_0, '_1, '_2>(@1: &'_2 mut closure<'_0, '_1>, @2: (u8, u8)) -> u8
+{
+    let _0: u8; // return
+    let state_1: &'_2 mut closure<'_0, '_1>; // arg #1
+    let args_2: (u8, u8); // arg #2
+    let _3: &'0 closure<'_0, '_1>; // anonymous local
+
+    storage_live(_3)
+    _3 = &(*state_1)
+    _0 = {impl#2}::call<'_0, '_1, '2>(move _3, move args_2)
     return
 }
 

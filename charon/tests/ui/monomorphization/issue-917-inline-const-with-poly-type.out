@@ -58,8 +58,7 @@ pub trait FnMut<Self, Args>
 // Full name: test_crate::foo::{const}::closure::<()>
 struct closure::<()> {}
 
-// Full name: core::ops::function::FnMut::call_mut
-pub fn call_mut<'_0>(@1: &'_0 mut closure::<()>, @2: ((),))
+pub fn core::ops::function::FnMut::call_mut<'_0>(@1: &'_0 mut closure::<()>, @2: ((),))
 = <opaque>
 
 fn UNIT_METADATA()
@@ -132,6 +131,36 @@ fn foo::<()>(@1: ())
     storage_dead(_4)
     storage_dead(_3)
     storage_dead(f_2)
+    return
+}
+
+// Full name: test_crate::foo::{const}::{impl#2}::call::<()>
+fn call::<()><'_0>(@1: &'_0 closure::<()>, @2: ((),))
+{
+    let _0: (); // return
+    let _1: &'1 closure::<()>; // arg #1
+    let tupled_args_2: ((),); // arg #2
+    let x_3: (); // local
+
+    storage_live(x_3)
+    _0 = ()
+    x_3 = move tupled_args_2.0
+    _0 = ()
+    return
+}
+
+// Full name: test_crate::foo::{const}::{impl#1}::call_mut::<()>
+fn {impl#1}::call_mut::<()><'_0>(@1: &'_0 mut closure::<()>, @2: ((),))
+{
+    let _0: (); // return
+    let state_1: &'_0 mut closure::<()>; // arg #1
+    let args_2: ((),); // arg #2
+    let _3: &'0 closure::<()>; // anonymous local
+
+    _0 = ()
+    storage_live(_3)
+    _3 = &(*state_1)
+    _0 = call::<()><'2>(move _3, move args_2)
     return
 }
 

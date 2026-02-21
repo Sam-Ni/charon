@@ -151,10 +151,21 @@ impl<'tcx, 'ctx> TranslateCtx<'tcx> {
                 };
 
                 if mono {
-                    if matches!(kind, TraitImplSource::Normal) {
-                        bt_ctx.translate_trait_impl_mono(item_meta, &def)?;
-                    } else {
-                        error!("TraitImpl other than Normal is not supported in Mono");
+                    // if matches!(kind, TraitImplSource::Normal) {
+                    //     bt_ctx.translate_trait_impl_mono(item_meta, &def)?;
+                    // }
+                    // else {
+                    //     error!("TraitImpl other than Normal is not supported in Mono");
+                    match kind {
+                        TraitImplSource::Normal => {
+                            bt_ctx.translate_trait_impl_mono(item_meta, &def)?;
+                        }
+                        TraitImplSource::Closure(kind) => {
+                            bt_ctx.translate_closure_trait_impl_mono(item_meta, &def, *kind)?;
+                        }
+                        TraitImplSource::TraitAlias | TraitImplSource::ImplicitDestruct => {
+                            error!("TraitAlias and ImplicitDestruct are not supported in Mono");
+                        }
                     }
                     self.translated.trait_impls.remove_and_shift_ids(id);
                 } else {

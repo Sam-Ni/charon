@@ -578,6 +578,48 @@ impl ItemTransCtx<'_, '_> {
         Ok(timpl)
     }
 
+    #[tracing::instrument(skip(self, item_meta))]
+    pub fn translate_closure_trait_impl_mono(
+        mut self,
+        item_meta: ItemMeta,
+        def: &hax::FullDef,
+        target_kind: ClosureKind,
+    ) -> Result<(), Error> {
+        let span = item_meta.span;
+        let hax::FullDefKind::Closure {
+            args: _,
+            fn_once_impl,
+            fn_mut_impl,
+            fn_impl,
+            ..
+        } = def.kind()
+        else {
+            unreachable!()
+        };
+
+        let vimpl = match target_kind {
+            ClosureKind::FnOnce => fn_once_impl,
+            ClosureKind::FnMut => fn_mut_impl.as_ref().unwrap(),
+            ClosureKind::Fn => fn_impl.as_ref().unwrap(),
+        };
+        let implemented_trait = self.translate_trait_predicate(span, &vimpl.trait_pred)?;
+
+        let call_fn_name = TraitItemName(target_kind.method_name().into());
+        let method_src = TransItemSource::from_item(
+            def.this(),
+            TransItemSourceKind::ClosureMethod(target_kind),
+            self.monomorphize(),
+        );
+        let method_id: FunDeclId = self.register_no_enqueue(span, &method_src);
+
+        self.register_method_impl(implemented_trait.id, call_fn_name.clone(), method_id);
+        if item_meta.opacity.is_transparent() {
+            self.mark_method_as_used(implemented_trait.id, call_fn_name);
+        }
+
+        Ok(())
+    }
+
     /// Given an item that is a non-capturing closure, generate the equivalent function,
     /// by removing the state from the parameters and untupling the arguments.
     #[tracing::instrument(skip(self, item_meta))]

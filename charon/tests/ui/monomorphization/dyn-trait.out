@@ -1,5 +1,5 @@
-ERROR in translate_item_aux at src/bin/charon-driver/translate/translate_items.rs:157:
-TraitImpl other than Normal is not supported in Mono
+ERROR in translate_item_aux at src/bin/charon-driver/translate/translate_items.rs:167:
+TraitAlias and ImplicitDestruct are not supported in Mono
 
 thread 'rustc' panicked at src/bin/charon-driver/translate/translate_trait_objects.rs:1854:13:
 Could not determine method index for drop in vtable

@@ -70,6 +70,10 @@ pub struct TranslateCtx<'tcx> {
     /// This is used to fetch the unique preshim
     /// when invoking dyn trait methods (see transform_dyn_trait_calls.rs).
     pub translated_preshims: HashSet<(TraitDeclId, Vec<Ty>)>,
+    /// Items explicitly selected by `--start-from`, `--start-from-attribute`, or
+    /// `--start-from-pub`. We force these items themselves to be transparent even if they come
+    /// from a foreign crate, so that starting from e.g. `std::cmp::min` translates its body.
+    pub explicit_start_items: HashSet<hax::DefId>,
 }
 
 /// Tracks whether a method is used (i.e. called or (non-opaquely) implemented).

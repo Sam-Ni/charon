@@ -739,6 +739,7 @@ pub fn translate<'tcx, 'ctx>(
         cached_names: Default::default(),
         lt_mutability_computer: Default::default(),
         translated_preshims: Default::default(),
+        explicit_start_items: Default::default(),
     };
     ctx.register_target_info();
 
@@ -750,6 +751,7 @@ pub fn translate<'tcx, 'ctx>(
                     Ok(resolved) => {
                         for def_id in resolved {
                             let def_id: hax::DefId = def_id.sinto(&ctx.hax_state);
+                            ctx.explicit_start_items.insert(def_id.clone());
                             ctx.enqueue_module_item(&def_id);
                         }
                     }
@@ -772,6 +774,7 @@ pub fn translate<'tcx, 'ctx>(
                     if !matches!(def_id.kind, hax::DefKind::Mod)
                         && def_id.attrs(tcx).iter().any(|a| a.path_matches(&attr_path))
                     {
+                        ctx.explicit_start_items.insert(def_id.clone());
                         ctx.enqueue_module_item(&def_id);
                     }
                 };
@@ -785,6 +788,7 @@ pub fn translate<'tcx, 'ctx>(
                     if !matches!(def_id.kind, hax::DefKind::Mod)
                         && def_id.visibility(tcx) == Some(true)
                     {
+                        ctx.explicit_start_items.insert(def_id.clone());
                         ctx.enqueue_module_item(&def_id);
                     }
                 };

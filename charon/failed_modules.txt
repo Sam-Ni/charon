@@ -1,6 +1,5 @@
 std::backtrace::*
 std::env::*
-std::ffi::VaListImpl::*
 std::fs::*
 std::fs::FileType::*
 std::io::*
@@ -22,10 +21,6 @@ std::panicking::*
 std::path::*
 std::primitive::*
 std::process::*
-std::range::IterRange::*
-std::range::IterRangeFrom::*
-std::range::IterRangeInclusive::*
-std::simd::LaneCount::*
 std::sync::*
 std::sync::mpmc::*
 std::sync::mpsc::*
@@ -34,12 +29,16 @@ std::sync::nonpoison::condvar::*
 std::sync::nonpoison::mutex::*
 std::sync::nonpoison::rwlock::*
 std::sync::once::*
+std::sync::oneshot::*
 std::sync::poison::*
 std::sync::poison::condvar::*
 std::sync::poison::mutex::*
 std::sync::poison::rwlock::*
 std::sync::reentrant_lock::*
 std::thread::*
+std::thread::builder::*
 std::thread::current::*
+std::thread::functions::*
+std::thread::join_handle::*
 std::thread::scoped::*
 std::time::*

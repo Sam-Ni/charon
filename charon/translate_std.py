@@ -44,7 +44,7 @@ def main():
             f.write("fn main() {}\n")
         print(f"Temporary file {test_file} created")
 
-    out_dir = "translate_std"
+    out_dir = "std"
     # Clean and create output directory
     clean_output_dir(out_dir)
 

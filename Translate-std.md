@@ -28,7 +28,7 @@ cargo build
 python3 translate_std.py --sysroot "$(rustc --print sysroot)"
 ```
 
-5. After execution, a directory named `translate_std` and a file named `failed_modules` will be created. For each standard library module:
+5. After execution, a directory named `std` and a file named `failed_modules.txt` will be created. For each standard library module:
 
   - If Charon translates it successfully, a file named `std_xxx_yyy.txt` is generated inside `translate_std`.
   - If translation fails, a file named `std_xxx_yyy_error.txt` is generated instead.

@@ -1,4 +1,4 @@
-Category,Count
+Category of Errors,Count of Errors
 one and only one scope should be passed to `RealFileName::path`: RemapPathScopeComponents(0x0),2421
 warning: charon does not support thread local references,164
 error: Type error after translation:,82

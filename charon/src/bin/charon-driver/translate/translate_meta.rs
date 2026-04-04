@@ -79,7 +79,7 @@ impl<'tcx, 'ctx> TranslateCtx<'tcx> {
                         // We use the virtual name because it is always available.
                         // That name normally starts with `/rustc/<hash>/`. For our purposes we hide
                         // the hash.
-                        let virtual_name = name.path(RemapPathScopeComponents::empty());
+                        let virtual_name = name.path(RemapPathScopeComponents::MACRO);
                         let mut components_iter = virtual_name.components();
                         if let Some(
                             [
@@ -455,7 +455,7 @@ impl<'tcx, 'ctx> TranslateCtx<'tcx> {
             let trans_id = self.register_no_enqueue(&None, src).unwrap();
             let span = self.def_span(&item_ref.def_id);
             let mut bt_ctx = ItemTransCtx::new(src.clone(), trans_id, self);
-            bt_ctx.binding_levels.push(BindingLevel::new(true));
+            bt_ctx.binding_levels.push(BindingLevel::new());
 
             let trait_def = bt_ctx.t_ctx.hax_def_for_item(&src.item)?;
             let mut assoc_types = None;
@@ -475,9 +475,8 @@ impl<'tcx, 'ctx> TranslateCtx<'tcx> {
                             implied_predicates, ..
                         } = item_def.kind()
                         {
-                            let predicates = &implied_predicates.predicates;
-                            if let Some((c, _)) = predicates.first() {
-                                if let hax::ClauseKind::Trait(p) = &c.kind.value {
+                            if let Some(pred) = implied_predicates.predicates.first() {
+                                if let hax::ClauseKind::Trait(p) = &pred.clause.kind.value {
                                     assoc_types = Some(p.trait_ref.generic_args.clone());
                                     break;
                                 }
@@ -641,6 +640,8 @@ impl<'tcx, 'ctx> TranslateCtx<'tcx> {
                 }
                 Attribute::Unknown(raw_attr.clone())
             }
+            // `#[verify::test]`: mark a function for test extraction
+            "test" if args.is_none() => Attribute::Unknown(raw_attr.clone()),
             _ => return Ok(None),
         };
         Ok(Some(parsed))

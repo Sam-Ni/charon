@@ -1,7 +1,6 @@
 std::backtrace::*
 std::env::*
 std::fs::*
-std::fs::FileType::*
 std::io::*
 std::io::buffered::*
 std::io::buffered::bufreader::*
@@ -19,6 +18,8 @@ std::net::udp::*
 std::panic::*
 std::panicking::*
 std::path::*
+std::prelude::*
+std::prelude::v1::*
 std::primitive::*
 std::process::*
 std::sync::*

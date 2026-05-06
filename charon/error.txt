@@ -1,0 +1,215 @@
+
+thread 'rustc' (107599) panicked at /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/rustc-src/rust/compiler/rustc_hir/src/def.rs:823:45:
+attempted .def_id() on invalid res: PrimTy(Bool)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+warning: Hax panicked when translating `core::primitive`.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/lib.rs:359:1
+
+warning: charon does not support thread local references
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/thread/current.rs:277:19
+
+note: the error occurred when translating `std::thread::current::current`, which is (transitively) used at the following location(s):
+warning: charon does not support thread local references
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/thread/current.rs:242:19
+
+note: the error occurred when translating `std::thread::current::current_or_unnamed`, which is (transitively) used at the following location(s):
+warning: charon does not support thread local references
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/thread/current.rs:325:19
+
+note: the error occurred when translating `std::thread::current::drop_current`, which is (transitively) used at the following location(s):
+
+thread 'rustc' (107599) panicked at /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/rustc-src/rust/compiler/rustc_const_eval/src/interpret/projection.rs:217:9:
+assertion failed: !base.meta().has_meta()
+warning: Hax panicked when translating `const Slice { alloc_id: alloc189, meta: 5 }: &std::ffi::CStr`.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/pal/unix/mod.rs:51:38
+
+note: the error occurred when translating `std::sys::pal::unix::init`, which is (transitively) used at the following location(s):
+
+thread 'rustc' (107599) panicked at /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/rustc-src/rust/compiler/rustc_hir/src/def.rs:823:45:
+attempted .def_id() on invalid res: PrimTy(Bool)
+warning: Hax panicked when translating `core::primitive`.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/lib.rs:359:1
+
+warning: charon does not support thread local references
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/thread/current.rs:122:8
+
+note: the error occurred when translating `std::thread::current::set_current`, which is (transitively) used at the following location(s):
+warning: charon does not support thread local references
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/thread/current.rs:291:9
+
+note: the error occurred when translating `std::thread::current::init_current`, which is (transitively) used at the following location(s):
+warning: charon does not support thread local references
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/thread/current.rs:194:19
+
+note: the error occurred when translating `std::thread::current::try_with_current::<std::thread::current::current_id::closure, core::option::Option::<std::thread::id::ThreadId>>`, which is (transitively) used at the following location(s):
+warning: charon does not support thread local references
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/thread/current.rs:34:17
+
+note: the error occurred when translating `std::thread::current::id::get`, which is (transitively) used at the following location(s):
+warning: charon does not support thread local references
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/thread/current.rs:38:17
+
+note: the error occurred when translating `std::thread::current::id::set`, which is (transitively) used at the following location(s):
+warning: charon does not support thread local references
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/thread_local/destructors/list.rs:26:25
+
+note: the error occurred when translating `std::sys::thread_local::destructors::list::run`, which is (transitively) used at the following location(s):
+
+thread 'rustc' (107599) panicked at /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/rustc-src/rust/compiler/rustc_const_eval/src/interpret/projection.rs:217:9:
+assertion failed: !base.meta().has_meta()
+warning: Hax panicked when translating `const Slice { alloc_id: alloc418, meta: 1 }: &std::ffi::CStr`.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/fs/unix.rs:1368:17
+
+note: the error occurred when translating `std::sys::fs::unix::{std::sys::fs::unix::File}::file_attr`, which is (transitively) used at the following location(s):
+warning: found a built-in trait impl we did not recognize: core::marker::FnPtr (lang_item=Some("fn_ptr_trait"))
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/pal/unix/weak/dlsym.rs:51:5
+
+note: the error occurred when translating `std::sys::thread::unix::min_stack_size`, which is (transitively) used at the following location(s):
+warning: Error during trait resolution: found a built-in trait impl we did not recognize: core::marker::FnPtr (lang_item=Some("fn_ptr_trait"))
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/pal/unix/weak/dlsym.rs:51:5
+
+warning: found a built-in trait impl we did not recognize: core::marker::FnPtr (lang_item=Some("fn_ptr_trait"))
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/pal/unix/weak/dlsym.rs:51:5
+
+warning: Error during trait resolution: found a built-in trait impl we did not recognize: core::marker::FnPtr (lang_item=Some("fn_ptr_trait"))
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/pal/unix/weak/dlsym.rs:51:5
+
+warning: Item is not monomorphic: Mono(ItemRef { contents: HashConsed(ItemRefContents { def_id: std::io::Write, generic_args: [Type(Ty { kind: HashConsed(Param(ParamTy { index: 0, name: "Self" })) })], impl_exprs: [], in_trait: None, has_param: true, has_non_lt_param: true }) })
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/io/mod.rs:1717:1
+
+note: the error occurred when translating `std::io::Write::write_all::{vtable_method_preshim}`, which is (transitively) used at the following location(s):
+warning: Item `std::io::Write` caused errors; ignoring.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/io/mod.rs:1717:1
+
+warning: Item is not monomorphic: Mono(ItemRef { contents: HashConsed(ItemRefContents { def_id: std::io::Write, generic_args: [Type(Ty { kind: HashConsed(Param(ParamTy { index: 0, name: "Self" })) })], impl_exprs: [], in_trait: None, has_param: true, has_non_lt_param: true }) })
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/io/mod.rs:1717:1
+
+note: the error occurred when translating `std::io::Write::write_all_vectored::{vtable_method_preshim}`, which is (transitively) used at the following location(s):
+warning: Item `std::io::Write` caused errors; ignoring.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/io/mod.rs:1717:1
+
+warning: Item is not monomorphic: Mono(ItemRef { contents: HashConsed(ItemRefContents { def_id: std::io::Write, generic_args: [Type(Ty { kind: HashConsed(Param(ParamTy { index: 0, name: "Self" })) })], impl_exprs: [], in_trait: None, has_param: true, has_non_lt_param: true }) })
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/io/mod.rs:1717:1
+
+note: the error occurred when translating `std::io::Write::write_fmt::{vtable_method_preshim}`, which is (transitively) used at the following location(s):
+warning: Item `std::io::Write` caused errors; ignoring.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/io/mod.rs:1717:1
+
+warning: Item is not monomorphic: Mono(ItemRef { contents: HashConsed(ItemRefContents { def_id: std::io::impls::{impl#11}, generic_args: [Type(Ty { kind: HashConsed(Param(ParamTy { index: 0, name: "A" })) })], impl_exprs: [HashConsed(ImplExprContents { trait: Binder { value: ItemRef { contents: HashConsed(ItemRefContents { def_id: core::marker::Sized, generic_args: [Type(Ty { kind: HashConsed(Param(ParamTy { index: 0, name: "A" })) })], impl_exprs: [], in_trait: None, has_param: true, has_non_lt_param: true }) }, bound_vars: [] }, impl: LocalBound { id: Required(std::io::impls::{impl#11}, 0), trait: Binder { value: ItemRef { contents: HashConsed(ItemRefContents { def_id: core::marker::Sized, generic_args: [Type(Ty { kind: HashConsed(Param(ParamTy { index: 0, name: "A" })) })], impl_exprs: [], in_trait: None, has_param: true, has_non_lt_param: true }) }, bound_vars: [] }, path: [] } }), HashConsed(ImplExprContents { trait: Binder { value: ItemRef { contents: HashConsed(ItemRefContents { def_id: core::alloc::Allocator, generic_args: [Type(Ty { kind: HashConsed(Param(ParamTy { index: 0, name: "A" })) })], impl_exprs: [], in_trait: None, has_param: true, has_non_lt_param: true }) }, bound_vars: [] }, impl: LocalBound { id: Required(std::io::impls::{impl#11}, 1), trait: Binder { value: ItemRef { contents: HashConsed(ItemRefContents { def_id: core::alloc::Allocator, generic_args: [Type(Ty { kind: HashConsed(Param(ParamTy { index: 0, name: "A" })) })], impl_exprs: [], in_trait: None, has_param: true, has_non_lt_param: true }) }, bound_vars: [] }, path: [] } })], in_trait: None, has_param: true, has_non_lt_param: true }) })
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/io/impls.rs:480:1
+
+note: the error occurred when translating `std::io::impls::{impl std::io::Write for alloc::vec::Vec::<u8, alloc::alloc::Global>}::{vtable}::<alloc::alloc::Global>`, which is (transitively) used at the following location(s):
+warning: Item `std::io::impls::{impl#11}` caused errors; ignoring.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/io/impls.rs:480:1
+
+
+thread 'rustc' (107599) panicked at src/bin/charon-driver/translate/translate_trait_objects.rs:1707:13:
+Could not determine method index for drop in vtable
+warning: Thread panicked when extracting item `core::panic::PanicPayload`.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/panic.rs:128:1
+
+note: the error occurred when translating `core::panic::PanicPayload::{vtable_drop_preshim}`, which is (transitively) used at the following location(s):
+
+thread 'rustc' (107599) panicked at src/bin/charon-driver/translate/translate_trait_objects.rs:1585:13:
+Could not determine method index for method_take_box in vtable
+warning: Thread panicked when extracting item `core::panic::PanicPayload`.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/panic.rs:128:1
+
+note: the error occurred when translating `core::panic::PanicPayload::take_box::{vtable_method_preshim}`, which is (transitively) used at the following location(s):
+
+thread 'rustc' (107599) panicked at src/bin/charon-driver/translate/translate_trait_objects.rs:1585:13:
+Could not determine method index for method_get in vtable
+warning: Thread panicked when extracting item `core::panic::PanicPayload`.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/panic.rs:128:1
+
+note: the error occurred when translating `core::panic::PanicPayload::get::{vtable_method_preshim}`, which is (transitively) used at the following location(s):
+warning: Item is not monomorphic: Mono(ItemRef { contents: HashConsed(ItemRefContents { def_id: core::panic::PanicPayload, generic_args: [Type(Ty { kind: HashConsed(Param(ParamTy { index: 0, name: "Self" })) })], impl_exprs: [], in_trait: None, has_param: true, has_non_lt_param: true }) })
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/panic.rs:128:1
+
+note: the error occurred when translating `core::panic::PanicPayload::as_str::{vtable_method_preshim}`, which is (transitively) used at the following location(s):
+warning: Item `core::panic::PanicPayload` caused errors; ignoring.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/panic.rs:128:1
+
+warning: charon does not support thread local references
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/thread_local/destructors/list.rs:10:25
+
+note: the error occurred when translating `std::sys::thread_local::destructors::list::register`, which is (transitively) used at the following location(s):
+warning: found a built-in trait impl we did not recognize: core::marker::FnPtr (lang_item=Some("fn_ptr_trait"))
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/pal/unix/weak/dlsym.rs:51:5
+
+note: the error occurred when translating `std::sys::pal::unix::weak::dlsym::{std::sys::pal::unix::weak::dlsym::DlsymWeak::<unsafe fn(*const libc::unix::linux_like::linux::gnu::b64::x86_64::pthread_attr_t) -> usize>}::get::<unsafe fn(*const libc::unix::linux_like::linux::gnu::b64::x86_64::pthread_attr_t) -> usize>`, which is (transitively) used at the following location(s):
+warning: Error during trait resolution: found a built-in trait impl we did not recognize: core::marker::FnPtr (lang_item=Some("fn_ptr_trait"))
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/pal/unix/weak/dlsym.rs:51:5
+
+warning: found a built-in trait impl we did not recognize: core::marker::FnPtr (lang_item=Some("fn_ptr_trait"))
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/pal/unix/weak/dlsym.rs:86:5
+
+warning: Error during trait resolution: found a built-in trait impl we did not recognize: core::marker::FnPtr (lang_item=Some("fn_ptr_trait"))
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/pal/unix/weak/dlsym.rs:86:5
+
+warning: found a built-in trait impl we did not recognize: core::marker::FnPtr (lang_item=Some("fn_ptr_trait"))
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/pal/unix/weak/dlsym.rs:86:5
+
+warning: Error during trait resolution: found a built-in trait impl we did not recognize: core::marker::FnPtr (lang_item=Some("fn_ptr_trait"))
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/pal/unix/weak/dlsym.rs:86:5
+
+
+thread 'rustc' (107599) panicked at src/bin/charon-driver/translate/translate_trait_objects.rs:1707:13:
+Could not determine method index for drop in vtable
+warning: Thread panicked when extracting item `core::fmt::Debug`.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/fmt/mod.rs:1052:1
+
+note: the error occurred when translating `core::fmt::Debug::{vtable_drop_preshim}`, which is (transitively) used at the following location(s):
+
+thread 'rustc' (107599) panicked at src/bin/charon-driver/translate/translate_trait_objects.rs:1585:13:
+Could not determine method index for method_fmt in vtable
+warning: Thread panicked when extracting item `core::fmt::Debug`.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/fmt/mod.rs:1052:1
+
+note: the error occurred when translating `core::fmt::Debug::fmt::{vtable_method_preshim}`, which is (transitively) used at the following location(s):
+warning: found a built-in trait impl we did not recognize: core::marker::FnPtr (lang_item=Some("fn_ptr_trait"))
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/pal/unix/weak/dlsym.rs:86:5
+
+note: the error occurred when translating `std::sys::pal::unix::weak::dlsym::{std::sys::pal::unix::weak::dlsym::DlsymWeak::<unsafe fn(*const libc::unix::linux_like::linux::gnu::b64::x86_64::pthread_attr_t) -> usize>}::initialize::<unsafe fn(*const libc::unix::linux_like::linux::gnu::b64::x86_64::pthread_attr_t) -> usize>`, which is (transitively) used at the following location(s):
+warning: Error during trait resolution: found a built-in trait impl we did not recognize: core::marker::FnPtr (lang_item=Some("fn_ptr_trait"))
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/pal/unix/weak/dlsym.rs:86:5
+
+
+thread 'rustc' (107599) panicked at /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/rustc-src/rust/compiler/rustc_const_eval/src/interpret/projection.rs:217:9:
+assertion failed: !base.meta().has_meta()
+warning: Hax panicked when translating `const Slice { alloc_id: alloc189, meta: 5 }: &std::ffi::CStr`.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/thread/thread.rs:311:18
+
+note: the error occurred when translating `std::thread::thread::{std::thread::thread::Thread}::cname`, which is (transitively) used at the following location(s):
+
+thread 'rustc' (107599) panicked at src/bin/charon-driver/translate/translate_trait_objects.rs:1707:13:
+Could not determine method index for drop in vtable
+warning: Thread panicked when extracting item `core::fmt::Write`.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/fmt/mod.rs:121:1
+
+note: the error occurred when translating `core::fmt::Write::{vtable_drop_preshim}`, which is (transitively) used at the following location(s):
+warning: Item is not monomorphic: Mono(ItemRef { contents: HashConsed(ItemRefContents { def_id: std::io::default_write_fmt::{impl#0}, generic_args: [Lifetime(Region { kind: ReEarlyParam(EarlyParamRegion { index: 0, name: "'_" }) }), Type(Ty { kind: HashConsed(Param(ParamTy { index: 1, name: "T" })) })], impl_exprs: [HashConsed(ImplExprContents { trait: Binder { value: ItemRef { contents: HashConsed(ItemRefContents { def_id: core::marker::MetaSized, generic_args: [Type(Ty { kind: HashConsed(Param(ParamTy { index: 1, name: "T" })) })], impl_exprs: [], in_trait: None, has_param: true, has_non_lt_param: true }) }, bound_vars: [] }, impl: LocalBound { id: Required(std::io::default_write_fmt::{impl#0}, 0), trait: Binder { value: ItemRef { contents: HashConsed(ItemRefContents { def_id: core::marker::MetaSized, generic_args: [Type(Ty { kind: HashConsed(Param(ParamTy { index: 1, name: "T" })) })], impl_exprs: [], in_trait: None, has_param: true, has_non_lt_param: true }) }, bound_vars: [] }, path: [] } }), HashConsed(ImplExprContents { trait: Binder { value: ItemRef { contents: HashConsed(ItemRefContents { def_id: std::io::Write, generic_args: [Type(Ty { kind: HashConsed(Param(ParamTy { index: 1, name: "T" })) })], impl_exprs: [], in_trait: None, has_param: true, has_non_lt_param: true }) }, bound_vars: [] }, impl: LocalBound { id: Required(std::io::default_write_fmt::{impl#0}, 1), trait: Binder { value: ItemRef { contents: HashConsed(ItemRefContents { def_id: std::io::Write, generic_args: [Type(Ty { kind: HashConsed(Param(ParamTy { index: 1, name: "T" })) })], impl_exprs: [], in_trait: None, has_param: true, has_non_lt_param: true }) }, bound_vars: [] }, path: [] } })], in_trait: None, has_param: true, has_non_lt_param: true }) })
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/io/mod.rs:626:5
+
+note: the error occurred when translating `core::fmt::Write::write_str::{vtable_method_preshim}`, which is (transitively) used at the following location(s):
+warning: Item `core::fmt::Write` caused errors; ignoring.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/fmt/mod.rs:121:1
+
+warning: Item is not monomorphic: Mono(ItemRef { contents: HashConsed(ItemRefContents { def_id: core::fmt::Write, generic_args: [Type(Ty { kind: HashConsed(Param(ParamTy { index: 0, name: "Self" })) })], impl_exprs: [], in_trait: None, has_param: true, has_non_lt_param: true }) })
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/fmt/mod.rs:121:1
+
+note: the error occurred when translating `core::fmt::Write::write_char::{vtable_method_preshim}`, which is (transitively) used at the following location(s):
+warning: Item `core::fmt::Write` caused errors; ignoring.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/fmt/mod.rs:121:1
+
+warning: Item is not monomorphic: Mono(ItemRef { contents: HashConsed(ItemRefContents { def_id: core::fmt::Write, generic_args: [Type(Ty { kind: HashConsed(Param(ParamTy { index: 0, name: "Self" })) })], impl_exprs: [], in_trait: None, has_param: true, has_non_lt_param: true }) })
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/fmt/mod.rs:121:1
+
+note: the error occurred when translating `core::fmt::Write::write_fmt::{vtable_method_preshim}`, which is (transitively) used at the following location(s):
+warning: Item `core::fmt::Write` caused errors; ignoring.
+ --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/fmt/mod.rs:121:1
+
+
+thread 'main' (107590) panicked at src/transform/normalize/transform_dyn_trait_calls.rs:121:13:
+MONO: preshim for as_str is not translated
+ERROR Compilation panicked

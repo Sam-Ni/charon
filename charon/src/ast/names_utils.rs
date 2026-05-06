@@ -40,7 +40,20 @@ impl Name {
 
     /// If this item comes from monomorphization, return the arguments used.
     pub fn mono_args(&self) -> Option<&GenericArgs> {
-        Some(self.name.last()?.as_monomorphized()?)
+        self.name.last()?.as_monomorphized()
+    }
+
+    /// Strip the trailing `PathElem::Target` from a name, if any.
+    pub fn strip_target_suffix(&self) -> Option<(Name, TargetTriple)> {
+        match self.name.last() {
+            Some(PathElem::Target(target)) => {
+                let target = target.clone();
+                let mut base = self.clone();
+                base.name.pop();
+                Some((base, target))
+            }
+            _ => None,
+        }
     }
 
     /// Compare the name to a constant array.
@@ -81,5 +94,11 @@ impl Name {
             self.name.push(PathElem::Instantiated(Box::new(binder)));
         }
         self
+    }
+
+    /// Get the last identifier of the name, if any. This is useful for error messages and such.
+    /// Panics if the name is empty or if the last element is not an identifier.
+    pub fn short_str(&self) -> &String {
+        self.name.last().unwrap().as_ident().unwrap().0
     }
 }

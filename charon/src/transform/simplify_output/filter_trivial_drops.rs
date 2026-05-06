@@ -1,5 +1,5 @@
 use crate::transform::TransformCtx;
-use crate::transform::ctx::UllbcPass;
+use crate::transform::ctx::FusedUllbcPass;
 use crate::ullbc_ast::*;
 
 fn is_trivial_drop(stmt: &Terminator) -> bool {
@@ -14,16 +14,13 @@ fn is_trivial_drop(stmt: &Terminator) -> bool {
 }
 
 pub struct Transform;
-impl UllbcPass for Transform {
+impl FusedUllbcPass for Transform {
     fn transform_body(&self, _ctx: &mut TransformCtx, body: &mut ullbc_ast::ExprBody) {
         for block in &mut body.body {
-            if is_trivial_drop(&block.terminator) {
-                match &block.terminator.kind {
-                    TerminatorKind::Drop { target, .. } => {
-                        block.terminator.kind = TerminatorKind::Goto { target: *target };
-                    }
-                    _ => {}
-                }
+            if is_trivial_drop(&block.terminator)
+                && let TerminatorKind::Drop { target, .. } = &block.terminator.kind
+            {
+                block.terminator.kind = TerminatorKind::Goto { target: *target };
             }
         }
     }

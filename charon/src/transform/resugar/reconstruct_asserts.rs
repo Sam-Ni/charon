@@ -6,10 +6,10 @@
 use crate::transform::TransformCtx;
 use crate::ullbc_ast::*;
 
-use crate::transform::ctx::UllbcPass;
+use crate::transform::ctx::FusedUllbcPass;
 
 pub struct Transform;
-impl UllbcPass for Transform {
+impl FusedUllbcPass for Transform {
     fn should_run(&self, options: &crate::options::TranslateOptions) -> bool {
         options.reconstruct_asserts
     }
@@ -21,37 +21,35 @@ impl UllbcPass for Transform {
         let panics = b.as_abort_map();
 
         for block in b.body.iter_mut() {
-            match &block.terminator.kind {
-                TerminatorKind::Switch {
-                    discr: _,
-                    targets: SwitchTargets::If(bid0, bid1),
-                } => {
-                    let (nbid, expected, abort) = if let Some(abort) = panics.get(bid0) {
-                        (*bid1, false, abort)
-                    } else if let Some(abort) = panics.get(bid1) {
-                        (*bid0, true, abort)
-                    } else {
-                        continue;
-                    };
+            if let TerminatorKind::Switch {
+                discr: _,
+                targets: SwitchTargets::If(bid0, bid1),
+            } = &block.terminator.kind
+            {
+                let (nbid, expected, abort) = if let Some(abort) = panics.get(bid0) {
+                    (*bid1, false, abort)
+                } else if let Some(abort) = panics.get(bid1) {
+                    (*bid0, true, abort)
+                } else {
+                    continue;
+                };
 
-                    let kind = std::mem::replace(
-                        &mut block.terminator.kind,
-                        TerminatorKind::Goto { target: nbid },
-                    );
-                    let (discr, _) = kind.as_switch().unwrap();
-                    block.statements.push(Statement::new(
-                        block.terminator.span,
-                        StatementKind::Assert {
-                            assert: Assert {
-                                cond: discr.clone(),
-                                expected,
-                                check_kind: None,
-                            },
-                            on_failure: abort.clone(),
+                let kind = std::mem::replace(
+                    &mut block.terminator.kind,
+                    TerminatorKind::Goto { target: nbid },
+                );
+                let (discr, _) = kind.as_switch().unwrap();
+                block.statements.push(Statement::new(
+                    block.terminator.span,
+                    StatementKind::Assert {
+                        assert: Assert {
+                            cond: discr.clone(),
+                            expected,
+                            check_kind: None,
                         },
-                    ));
-                }
-                _ => (),
+                        on_failure: abort.clone(),
+                    },
+                ));
             }
         }
     }

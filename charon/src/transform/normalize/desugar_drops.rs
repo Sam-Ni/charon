@@ -31,9 +31,7 @@ impl<'a> UllbcStatementTransformCtx<'a> {
         {
             // check if this drop is noop
             if is_noop_destruct(tref) {
-                term.kind = TerminatorKind::Goto {
-                    target: target.clone(),
-                };
+                term.kind = TerminatorKind::Goto { target: *target };
                 return;
             }
 
@@ -65,8 +63,8 @@ impl<'a> UllbcStatementTransformCtx<'a> {
             };
             term.kind = TerminatorKind::Call {
                 call,
-                target: target.clone(),
-                on_unwind: on_unwind.clone(),
+                target: *target,
+                on_unwind: *on_unwind,
             };
         }
     }
@@ -75,10 +73,10 @@ impl<'a> UllbcStatementTransformCtx<'a> {
 pub struct Transform;
 
 impl UllbcPass for Transform {
+    fn should_run(&self, options: &crate::options::TranslateOptions) -> bool {
+        options.desugar_drops
+    }
     fn transform_function(&self, ctx: &mut TransformCtx, decl: &mut FunDecl) {
-        if !ctx.options.desugar_drops {
-            return;
-        }
         decl.transform_ullbc_terminators(ctx, |ctx, term| {
             ctx.transform_drop_to_call(term);
         });

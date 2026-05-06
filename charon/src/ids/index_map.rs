@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize, Serializer};
 use serde_state::{DeserializeState, SerializeState};
 use std::{
     iter::{FromIterator, IntoIterator},
-    mem,
     ops::{ControlFlow, Index, IndexMut},
 };
 
@@ -19,6 +18,7 @@ use derive_generic_visitor::*;
 /// To prevent accidental id reuse, the vector supports reserving a slot to be filled later. Use
 /// `IndexVec` if this is not needed.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[charon::rename("IndexedMap")]
 pub struct IndexMap<I, T>
 where
     I: Idx,
@@ -56,11 +56,11 @@ where
     }
 
     pub fn get(&self, i: I) -> Option<&T> {
-        self.vector.get(i).map(Option::as_ref).flatten()
+        self.vector.get(i).and_then(Option::as_ref)
     }
 
     pub fn get_mut(&mut self, i: I) -> Option<&mut T> {
-        self.vector.get_mut(i).map(Option::as_mut).flatten()
+        self.vector.get_mut(i).and_then(Option::as_mut)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -75,11 +75,6 @@ where
     /// The number of slots allocated in the vector (empty or not).
     pub fn slot_count(&self) -> usize {
         self.vector.len()
-    }
-
-    /// Gets the value of the next available id. Avoid if possible; use `reserve_slot` instead.
-    pub fn next_id(&self) -> I {
-        self.vector.next_idx()
     }
 
     /// Reserve a spot in the vector.
@@ -134,21 +129,11 @@ where
         id
     }
 
-    pub fn push_all<It>(&mut self, it: It) -> impl Iterator<Item = I> + use<'_, I, T, It>
-    where
-        It: IntoIterator<Item = T>,
-    {
-        it.into_iter().map(move |x| self.push(x))
+    pub fn extend_from_other(&mut self, other: Self) {
+        self.vector.extend(other.vector);
+        self.elem_count += other.elem_count;
     }
-
-    pub fn extend<It>(&mut self, it: It)
-    where
-        It: IntoIterator<Item = T>,
-    {
-        self.push_all(it).for_each(|_| ())
-    }
-
-    pub fn extend_from_slice(&mut self, other: &Self)
+    pub fn clone_extend_from_other(&mut self, other: &Self)
     where
         T: Clone,
     {
@@ -264,11 +249,11 @@ where
     }
 
     /// Iter over the nonempty slots.
-    pub fn iter(&self) -> impl Iterator<Item = &T> + DoubleEndedIterator + Clone {
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &T> + Clone {
         self.vector.iter().filter_map(|opt| opt.as_ref())
     }
 
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> + DoubleEndedIterator {
+    pub fn iter_mut(&mut self) -> impl DoubleEndedIterator<Item = &mut T> {
         self.vector.iter_mut().filter_map(|opt| opt.as_mut())
     }
 
@@ -328,7 +313,7 @@ where
             .filter_map(move |(i, opt)| {
                 if f(opt.as_mut()?) {
                     *elem_count -= 1;
-                    let elem = mem::replace(opt, None)?;
+                    let elem = opt.take()?;
                     Some((i, elem))
                 } else {
                     None
@@ -429,14 +414,13 @@ where
     I: Idx,
 {
     type Item = T;
-    type IntoIter = impl Iterator<Item = T> + DoubleEndedIterator;
+    type IntoIter = impl DoubleEndedIterator<Item = T>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.vector.into_iter().flat_map(|opt| opt)
+        self.vector.into_iter().flatten()
     }
 }
 
-// FIXME: this impl is a footgun
 impl<I, T> FromIterator<T> for IndexMap<I, T>
 where
     I: Idx,
@@ -446,26 +430,6 @@ where
         let mut elem_count = 0;
         let vector = IndexVec::from_iter(iter.into_iter().inspect(|_| elem_count += 1).map(Some));
         IndexMap { vector, elem_count }
-    }
-}
-
-// FIXME: this impl is a footgun
-impl<I, T> From<Vec<T>> for IndexMap<I, T>
-where
-    I: Idx,
-{
-    fn from(v: Vec<T>) -> Self {
-        v.into_iter().collect()
-    }
-}
-
-// FIXME: this impl is a footgun
-impl<I, T, const N: usize> From<[T; N]> for IndexMap<I, T>
-where
-    I: Idx,
-{
-    fn from(v: [T; N]) -> Self {
-        v.into_iter().collect()
     }
 }
 

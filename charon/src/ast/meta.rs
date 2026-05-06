@@ -24,6 +24,7 @@ generate_index_type!(FileId);
     Drive,
     DriveMut,
 )]
+#[drive(skip)]
 pub struct Loc {
     /// The (1-based) line number.
     pub line: usize,
@@ -59,7 +60,6 @@ pub struct SpanData {
     Drive,
     DriveMut,
 )]
-#[drive(skip)]
 #[serde_state(stateless)]
 pub struct Span {
     /// The source code span.
@@ -143,7 +143,7 @@ pub struct RawAttribute {
 }
 
 /// Information about the attributes and visibility of an item, field or variant..
-#[derive(Debug, Default, Clone, Serialize, Deserialize, Drive, DriveMut)]
+#[derive(Debug, PartialEq, Eq, Default, Clone, Serialize, Deserialize, Drive, DriveMut)]
 pub struct AttrInfo {
     /// Attributes (`#[...]`).
     pub attributes: Vec<Attribute>,
@@ -203,6 +203,7 @@ pub enum ItemOpacity {
     ///
     /// This can happen either if the item was annotated with `#[charon::opaque]` or if it was
     /// declared opaque via a command-line argument.
+    #[charon::rename("ItemOpaque")]
     Opaque,
     /// Translate nothing of this item. The corresponding map will not have an entry for the
     /// `ItemId`. Useful when even the signature of the item causes errors.
@@ -210,7 +211,7 @@ pub enum ItemOpacity {
 }
 
 /// Meta information about an item (function, trait decl, trait impl, type decl, global).
-#[derive(Debug, Clone, SerializeState, DeserializeState, Drive, DriveMut)]
+#[derive(Debug, PartialEq, Eq, Clone, SerializeState, DeserializeState, Drive, DriveMut)]
 #[serde_state(stateless)]
 pub struct ItemMeta {
     #[serde_state(stateful)]
@@ -232,7 +233,6 @@ pub struct ItemMeta {
     ///
     /// This can happen either if the item was annotated with `#[charon::opaque]` or if it was
     /// declared opaque via a command-line argument.
-    #[charon::opaque]
     #[drive(skip)]
     pub opacity: ItemOpacity,
     /// If the item is built-in, record its internal builtin identifier.
@@ -259,6 +259,9 @@ pub enum FileName {
     Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Serialize, Deserialize, Drive, DriveMut,
 )]
 pub struct File {
+    /// The file identifier.
+    #[charon::opaque]
+    pub id: FileId,
     /// The path to the file.
     pub name: FileName,
     /// Name of the crate this file comes from.

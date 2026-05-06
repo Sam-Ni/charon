@@ -13,7 +13,7 @@ use crate::ids::IndexVec;
 use crate::transform::TransformCtx;
 use crate::ullbc_ast::{BlockId, ExprBody, Statement, StatementKind};
 
-use crate::transform::ctx::UllbcPass;
+use crate::transform::ctx::FusedUllbcPass;
 
 type LocalUses = IndexVec<BlockId, HashSet<LocalId>>;
 
@@ -51,7 +51,7 @@ fn compute_uses(body: &ExprBody) -> LocalUses {
                     // so any usage after this point doesn't matter
                     // Similarly, a `StorageDead` means the local is de-initialised,
                     // so we can ignore any usage after this point
-                    visitor.0.remove(&local);
+                    visitor.0.remove(local);
                 }
                 _ => {
                     let _ = statement.drive_body(&mut visitor);
@@ -73,10 +73,10 @@ fn uses_local<T: BodyVisitable>(x: &T, local: LocalId) -> bool {
     }
     impl VisitBody for UsesLocalVisitor {
         fn visit_place(&mut self, x: &Place) -> ::std::ops::ControlFlow<Self::Break> {
-            if let Some(local_id) = x.as_local() {
-                if local_id == self.0 {
-                    return ControlFlow::Break(FoundIt);
-                }
+            if let Some(local_id) = x.as_local()
+                && local_id == self.0
+            {
+                return ControlFlow::Break(FoundIt);
             }
             self.visit_inner(x)
         }
@@ -580,7 +580,7 @@ fn remove_dynamic_checks(
         if let StatementKind::Assign(place, _) = &statements[i].kind
             && let Some(local) = place.as_local()
             && let mut statements_to_keep = statements[removed_len..].as_ref().iter()
-            && let mut other_blocks = uses.iter_indexed().filter(|(bid, _)| *bid != block_id)
+            && let mut other_blocks = uses.iter_enumerated().filter(|(bid, _)| *bid != block_id)
             && (other_blocks.any(|(_, used)| used.contains(&local))
                 || statements_to_keep.any(|st| uses_local(st, local)))
         {
@@ -591,7 +591,7 @@ fn remove_dynamic_checks(
 }
 
 pub struct Transform;
-impl UllbcPass for Transform {
+impl FusedUllbcPass for Transform {
     fn should_run(&self, options: &crate::options::TranslateOptions) -> bool {
         options.reconstruct_fallible_operations
     }

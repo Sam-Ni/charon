@@ -45,6 +45,8 @@
 
         # Check rust files are correctly formatted.
         charon-check-fmt = charon.passthru.check-fmt;
+        # Check rust files are clippy-clean.
+        charon-check-clippy = charon.passthru.check-clippy;
         # Check that the crate builds with the "rustc" feature off.
         charon-check-no-rustc = charon.passthru.check-no-rustc;
         # Check ocaml files are correctly formatted.
@@ -148,10 +150,27 @@
             pkgs.toml2json
           ];
         };
+        devShells.bench = pkgs.mkShell {
+          buildInputs = [
+            pkgs.openssl
+            pkgs.glibc.out
+            pkgs.glibc.static
+            pkgs.protobuf
+            pkgs.jq
+            pkgs.linuxPackages.perf
+            pkgs.time
+            self.packages.${system}.charon
+          ];
+          # Include the rust toolchain
+          inputsFrom = [
+            self.packages.${system}.charon
+          ];
+        };
         checks = {
           default = charon-ml-tests;
           inherit charon-ml-tests charon-check-fmt charon-check-no-rustc
-            charon-ml-check-fmt check-generated-ml test-charon-via-nix;
+            charon-ml-check-fmt check-generated-ml test-charon-via-nix
+            charon-check-clippy;
         };
 
         # Export this function so that users of charon can use it in nix. This

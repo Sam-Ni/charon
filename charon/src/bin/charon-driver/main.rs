@@ -1,42 +1,64 @@
 //! The Charon driver, which calls Rustc with callbacks to compile some Rust
 //! crate to LLBC.
 #![feature(rustc_private)]
+#![allow(clippy::useless_format)]
+#![allow(clippy::manual_map)]
+#![allow(clippy::mem_replace_with_default)]
+#![allow(clippy::derivable_impls)]
+#![allow(clippy::borrowed_box)]
+#![allow(clippy::field_reassign_with_default)]
 #![expect(incomplete_features)]
 #![feature(box_patterns)]
 #![feature(deref_patterns)]
 #![feature(if_let_guard)]
 #![feature(iter_array_chunks)]
 #![feature(iterator_try_collect)]
+#![feature(macro_metavar_expr)]
+#![feature(sized_hierarchy)]
+#![feature(trait_alias)]
+#![feature(type_changing_struct_update)]
 
 extern crate rustc_abi;
+extern crate rustc_apfloat;
 extern crate rustc_ast;
 extern crate rustc_ast_pretty;
+extern crate rustc_const_eval;
+extern crate rustc_data_structures;
 extern crate rustc_driver;
 extern crate rustc_error_messages;
 extern crate rustc_errors;
+extern crate rustc_hashes;
 extern crate rustc_hir;
+extern crate rustc_hir_analysis;
 extern crate rustc_index;
+extern crate rustc_infer;
 extern crate rustc_interface;
+extern crate rustc_lexer;
 extern crate rustc_middle;
+extern crate rustc_mir_build;
 extern crate rustc_session;
 extern crate rustc_span;
 extern crate rustc_target;
+extern crate rustc_trait_selection;
+extern crate rustc_type_ir;
 
 #[macro_use]
 extern crate charon_lib;
 
 mod driver;
+#[macro_use]
+pub mod hax;
 mod translate;
 
 use charon_lib::{
     export, logger,
-    options::{self, CliOpts},
+    options::CliOpts,
     transform::{
         FINAL_CLEANUP_PASSES, INITIAL_CLEANUP_PASSES, LLBC_PASSES, Pass, PrintCtxPass,
         SHARED_FINALIZING_PASSES, ULLBC_PASSES,
     },
 };
-use std::{env, fmt, panic};
+use std::{fmt, panic};
 
 pub enum CharonFailure {
     /// The usize is the number of errors.
@@ -67,7 +89,7 @@ pub fn transformation_passes(options: &CliOpts) -> Vec<Pass> {
 
     passes.push(Pass::NonBody(PrintCtxPass::new(
         options.print_original_ullbc,
-        format!("# ULLBC after translation from MIR"),
+        "# ULLBC after translation from MIR".to_string(),
     )));
 
     passes.extend(INITIAL_CLEANUP_PASSES);
@@ -77,7 +99,7 @@ pub fn transformation_passes(options: &CliOpts) -> Vec<Pass> {
         // If we're reconstructing control-flow, print the ullbc here.
         passes.push(Pass::NonBody(PrintCtxPass::new(
             options.print_ullbc,
-            format!("# Final ULLBC before control-flow reconstruction"),
+            "# Final ULLBC before control-flow reconstruction".to_string(),
         )));
     }
 
@@ -90,12 +112,12 @@ pub fn transformation_passes(options: &CliOpts) -> Vec<Pass> {
         // If we're not reconstructing control-flow, print the ullbc after finalizing passes.
         passes.push(Pass::NonBody(PrintCtxPass::new(
             options.print_ullbc,
-            format!("# Final ULLBC before serialization"),
+            "# Final ULLBC before serialization".to_string(),
         )));
     } else {
         passes.push(Pass::NonBody(PrintCtxPass::new(
             options.print_llbc,
-            format!("# Final LLBC before serialization"),
+            "# Final LLBC before serialization".to_string(),
         )));
     }
 
@@ -106,9 +128,9 @@ pub fn transformation_passes(options: &CliOpts) -> Vec<Pass> {
 }
 
 /// Run charon. Returns the number of warnings generated.
-fn run_charon(options: CliOpts) -> Result<usize, CharonFailure> {
+fn run_charon() -> Result<usize, CharonFailure> {
     // Run the driver machinery.
-    let Some(mut ctx) = driver::run_rustc_driver(&options)? else {
+    let Some((mut ctx, options)) = driver::run_rustc_driver()? else {
         // We didn't run charon.
         return Ok(0);
     };
@@ -116,7 +138,6 @@ fn run_charon(options: CliOpts) -> Result<usize, CharonFailure> {
     // The bulk of the translation is done, we no longer need to interact with rustc internals. We
     // run several passes that simplify the items and cleanup the bodies.
     for pass in transformation_passes(&options) {
-        trace!("# Starting pass {}", pass.name());
         pass.run(&mut ctx);
     }
 
@@ -124,19 +145,9 @@ fn run_charon(options: CliOpts) -> Result<usize, CharonFailure> {
 
     // # Final step: generate the files.
     if !options.no_serialize {
-        let crate_data = export::CrateData::new(ctx);
-        let dest_file = match options.dest_file.clone() {
-            Some(f) => f,
-            None => {
-                let mut target_filename = options.dest_dir.clone().unwrap_or_default();
-                let crate_name = &crate_data.translated.crate_name;
-                let extension = if options.ullbc { "ullbc" } else { "llbc" };
-                target_filename.push(format!("{crate_name}.{extension}"));
-                target_filename
-            }
-        };
+        let dest_file = options.target_filename(&ctx.translated.crate_name);
         trace!("Target file: {:?}", dest_file);
-        crate_data
+        export::CrateData::new(ctx)
             .serialize_to_file(&dest_file)
             .map_err(|()| CharonFailure::Serialize)?;
     }
@@ -152,17 +163,8 @@ fn main() {
     // Initialize the logger
     logger::initialize_logger();
 
-    // Retrieve the Charon options by deserializing them from the environment variable
-    // (cargo-charon serialized the arguments and stored them in a specific environment
-    // variable before calling cargo with RUSTC_WRAPPER=charon-driver).
-    let mut options: options::CliOpts = match env::var(options::CHARON_ARGS) {
-        Ok(opts) => serde_json::from_str(opts.as_str()).unwrap(),
-        Err(_) => Default::default(),
-    };
-    options.apply_preset();
-
     // Catch any and all panics coming from charon to display a clear error.
-    let res = panic::catch_unwind(move || run_charon(options))
+    let res = panic::catch_unwind(run_charon)
         .map_err(|_| CharonFailure::Panic)
         .and_then(|x| x);
 

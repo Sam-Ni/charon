@@ -14,9 +14,13 @@ impl Body {
     pub fn has_contents(&self) -> bool {
         match self {
             Body::Unstructured(..) | Body::Structured(..) => true,
-            Body::TraitMethodWithoutDefault | Body::Opaque | Body::Missing | Body::Error(..) => {
-                false
-            }
+            Body::TraitMethodWithoutDefault
+            | Body::Extern(..)
+            | Body::Intrinsic { .. }
+            | Body::Opaque
+            | Body::Missing
+            | Body::Error(..)
+            | Body::TargetDispatch(..) => false,
         }
     }
 
@@ -67,7 +71,7 @@ impl Locals {
 
     /// Locals that aren't arguments or return values.
     pub fn non_argument_locals(&self) -> impl Iterator<Item = (LocalId, &Local)> {
-        self.locals.iter_indexed().skip(1 + self.arg_count)
+        self.locals.iter_enumerated().skip(1 + self.arg_count)
     }
 }
 

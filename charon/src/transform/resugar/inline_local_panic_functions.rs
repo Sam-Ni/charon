@@ -25,12 +25,11 @@ impl UllbcPass for Transform {
                     && block.statements.is_empty()
                     && let TerminatorKind::Abort(AbortKind::Panic(Some(name))) =
                         &block.terminator.kind
+                    && name.equals_ref_name(builtins::EXPLICIT_PANIC_NAME)
                 {
-                    if name.equals_ref_name(builtins::EXPLICIT_PANIC_NAME) {
-                        // FIXME: also check that the name of the function is
-                        // `panic_cold_explicit`?
-                        panic_fns.insert(decl.def_id);
-                    }
+                    // FIXME: also check that the name of the function is
+                    // `panic_cold_explicit`?
+                    panic_fns.insert(decl.def_id);
                 }
             }
         });
@@ -41,7 +40,7 @@ impl UllbcPass for Transform {
         // Replace each call to one such function with a `Panic`.
         ctx.for_each_fun_decl(|_ctx, decl| {
             if let Some(body) = decl.body.as_unstructured_mut() {
-                for block_id in body.body.all_indices() {
+                for block_id in body.body.indices() {
                     let Some(block) = body.body.get_mut(block_id) else {
                         continue;
                     };

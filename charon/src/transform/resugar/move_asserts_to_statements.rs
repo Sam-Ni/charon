@@ -9,10 +9,10 @@ use crate::ast::*;
 use crate::transform::TransformCtx;
 use crate::ullbc_ast::{ExprBody, Statement, StatementKind, TerminatorKind};
 
-use crate::transform::ctx::UllbcPass;
+use crate::transform::ctx::FusedUllbcPass;
 
 pub struct Transform;
-impl UllbcPass for Transform {
+impl FusedUllbcPass for Transform {
     fn should_run(&self, options: &crate::options::TranslateOptions) -> bool {
         options.reconstruct_fallible_operations
     }
@@ -48,7 +48,7 @@ impl UllbcPass for Transform {
 
             let on_failure = panics
                 .get(&on_unwind)
-                .map(AbortKind::clone)
+                .cloned()
                 .unwrap_or(AbortKind::Panic(None));
 
             block.statements.push(Statement {

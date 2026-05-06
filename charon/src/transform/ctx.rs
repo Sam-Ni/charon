@@ -53,13 +53,37 @@ pub trait UllbcPass: Sync {
     /// Log that the pass is about to be run on this body.
     fn log_before_body(&self, ctx: &TransformCtx, name: &Name, body: &Body) {
         let fmt_ctx = &ctx.into_fmt();
-        let body_str = body.to_string_with_ctx(fmt_ctx);
         trace!(
             "# About to run pass [{}] on `{}`:\n{}",
             self.name(),
             name.with_ctx(fmt_ctx),
-            body_str,
+            body.with_ctx(fmt_ctx),
         );
+    }
+}
+
+/// A pass that modifies ullbc bodies and can be fused with previous passes so that we run all of
+/// them on a given body.
+pub trait FusedUllbcPass: Sync {
+    /// Whether the pass should run.
+    fn should_run(&self, _options: &TranslateOptions) -> bool {
+        true
+    }
+
+    /// Transform a body.
+    fn transform_body(&self, _ctx: &mut TransformCtx, _body: &mut ullbc_ast::ExprBody) {}
+
+    /// Transform a function declaration. This forwards to `transform_body` by default.
+    fn transform_function(&self, ctx: &mut TransformCtx, decl: &mut FunDecl) {
+        if let Some(body) = decl.body.as_unstructured_mut() {
+            self.transform_body(ctx, body)
+        }
+    }
+
+    /// The name of the pass, used for debug logging. The default implementation uses the type
+    /// name.
+    fn name(&self) -> &str {
+        std::any::type_name::<Self>()
     }
 }
 
@@ -123,7 +147,7 @@ pub trait TransformPass: Sync {
     }
 }
 
-impl<'ctx> TransformCtx {
+impl TransformCtx {
     pub(crate) fn has_errors(&self) -> bool {
         self.errors.borrow().has_errors()
     }
@@ -149,7 +173,7 @@ impl<'ctx> TransformCtx {
         F: FnOnce(&mut Self) -> T,
     {
         let mut errors = self.errors.borrow_mut();
-        let current_def_id = mem::replace(&mut errors.def_id, Some(def_id.into()));
+        let current_def_id = errors.def_id.replace(def_id.into());
         let current_def_id_is_local = mem::replace(&mut errors.def_id_is_local, def_id_is_local);
         drop(errors); // important: release the refcell "lock"
         let ret = f(self);
@@ -165,14 +189,14 @@ impl<'ctx> TransformCtx {
     pub(crate) fn for_each_body(&mut self, mut f: impl FnMut(&mut Self, &mut Body)) {
         let fn_ids = self.translated.fun_decls.all_indices();
         for id in fn_ids {
-            if let Some(decl) = self.translated.fun_decls.get_mut(id) {
-                if decl.body.has_contents() {
-                    let mut body = mem::replace(&mut decl.body, Body::Opaque);
-                    let fun_decl_id = decl.def_id;
-                    let is_local = decl.item_meta.is_local;
-                    self.with_def_id(fun_decl_id, is_local, |ctx| f(ctx, &mut body));
-                    self.translated.fun_decls[id].body = body;
-                }
+            if let Some(decl) = self.translated.fun_decls.get_mut(id)
+                && decl.body.has_contents()
+            {
+                let mut body = mem::replace(&mut decl.body, Body::Opaque);
+                let fun_decl_id = decl.def_id;
+                let is_local = decl.item_meta.is_local;
+                self.with_def_id(fun_decl_id, is_local, |ctx| f(ctx, &mut body));
+                self.translated.fun_decls[id].body = body;
             }
         }
     }
@@ -195,7 +219,7 @@ impl<'ctx> TransformCtx {
     /// each item before iterating over it. Items added during traversal will not be iterated over.
     pub fn for_each_item_mut(&mut self, mut f: impl for<'a> FnMut(&'a mut Self, ItemRefMut<'a>)) {
         for id in self.translated.all_ids() {
-            if let Some(mut decl) = self.translated.remove_item(id) {
+            if let Some(mut decl) = self.translated.remove_item_temporarily(id) {
                 f(self, decl.as_mut());
                 self.translated.set_item_slot(id, decl);
             }
@@ -228,7 +252,7 @@ pub trait BodyTransformCtx: Sized {
     fn insert_storage_dead_stmt(&mut self, local: LocalId);
     fn insert_assn_stmt(&mut self, place: Place, rvalue: Rvalue);
 
-    fn into_fmt(&self) -> FmtCtx<'_> {
+    fn to_fmt(&self) -> FmtCtx<'_> {
         self.get_crate().into_fmt()
     }
 
@@ -369,7 +393,7 @@ pub trait BodyTransformCtx: Sized {
                 // Indexing for array & slice will only result in sized types, hence no metadata
                 ProjectionElem::Index { .. } => None,
                 // Ptr metadata is always sized.
-                ProjectionElem::PtrMetadata { .. } => None,
+                ProjectionElem::PtrMetadata => None,
                 // Subslice must have metadata length, compute the metadata here as `to` - `from`
                 ProjectionElem::Subslice { from, to, from_end } => {
                     let to_idx = ctx.compute_subslice_end_idx(subplace, *to.clone(), *from_end);
@@ -385,9 +409,9 @@ pub trait BodyTransformCtx: Sized {
         }
         trace!(
             "getting ptr metadata for place: {}",
-            place.with_ctx(&self.into_fmt())
+            place.with_ctx(&self.to_fmt())
         );
-        let metadata_ty = place.ty().get_ptr_metadata(&self.get_crate()).into_type();
+        let metadata_ty = place.ty().get_ptr_metadata(self.get_crate()).into_type();
         if metadata_ty.is_unit()
             || matches!(metadata_ty.kind(), TyKind::PtrMetadata(ty) if self.is_sized_type_var(ty))
         {
@@ -396,7 +420,7 @@ pub trait BodyTransformCtx: Sized {
         }
         trace!(
             "computed metadata type: {}",
-            metadata_ty.with_ctx(&self.into_fmt())
+            metadata_ty.with_ctx(&self.to_fmt())
         );
         compute_place_metadata_inner(self, place, &metadata_ty).unwrap_or_else(|| no_metadata(self))
     }

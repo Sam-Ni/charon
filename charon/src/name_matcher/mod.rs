@@ -43,6 +43,12 @@ impl Pattern {
         use std::str::FromStr;
         Self::from_str(i)
     }
+    /// Construct a pattern that matches all the impls for that trait.
+    pub fn impl_for(trait_pat: Self) -> Self {
+        Pattern {
+            elems: vec![PatElem::Impl(Box::new(trait_pat))],
+        }
+    }
 
     fn len(&self) -> usize {
         self.elems.len()
@@ -70,7 +76,7 @@ impl Pattern {
             // In this case, we may still have some late-bound generics in `args`, this could ONLY happen for regions
             assert!(
                 args.is_none()
-                    || args.as_ref().unwrap().len() == args.as_ref().unwrap().regions.elem_count(),
+                    || args.as_ref().unwrap().len() == args.as_ref().unwrap().regions.len(),
                 "In pattern \"{}\" matching against name \"{}\": we have both monomorphized generics {} and regular generics {}",
                 self,
                 name.with_ctx(&ctx.into_fmt()),
@@ -83,7 +89,7 @@ impl Pattern {
             let mut mono_args = mono_args.skip_binder.clone();
             if let Some(args) = args {
                 // Late-bound regions are appended after the monomorphized ones.
-                mono_args.regions.extend(args.regions.into_iter());
+                mono_args.regions.extend(args.regions);
             }
             scrutinee_elems = prefix;
             args = Some(mono_args);
@@ -92,14 +98,13 @@ impl Pattern {
         // Patterns that start with an impl block match that impl block anywhere. In such a case we
         // truncate the scrutinee name to start with the rightmost impl in its name. This isn't
         // fully precise in case of impls within impls, but we'll ignore that.
-        if let Some(PatElem::Impl(_)) = self.elems.first() {
-            if let Some((i, _)) = scrutinee_elems
+        if let Some(PatElem::Impl(_)) = self.elems.first()
+            && let Some((i, _)) = scrutinee_elems
                 .iter()
                 .enumerate()
                 .rfind(|(_, elem)| elem.is_impl())
-            {
-                scrutinee_elems = &scrutinee_elems[i..];
-            }
+        {
+            scrutinee_elems = &scrutinee_elems[i..];
         }
 
         let zipped = self.elems.iter().zip_longest(scrutinee_elems).collect_vec();
@@ -216,7 +221,7 @@ impl Ord for Pattern {
 }
 impl PartialOrd for Pattern {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.compare(other))
+        Some(self.cmp(other))
     }
 }
 
@@ -275,10 +280,10 @@ impl PatTy {
             return true;
         }
         // We don't include regions in patterns.
-        if pats.len() != generics.types.elem_count() + generics.const_generics.elem_count() {
+        if pats.len() != generics.types.len() + generics.const_generics.len() {
             return false;
         }
-        let (type_pats, const_pats) = pats.split_at(generics.types.elem_count());
+        let (type_pats, const_pats) = pats.split_at(generics.types.len());
         let types_match = generics
             .types
             .iter()

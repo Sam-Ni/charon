@@ -147,7 +147,6 @@ pub struct TraitParam {
     // TODO: does not need to be an option.
     pub span: Option<Span>,
     /// Where the predicate was written, relative to the item that requires it.
-    #[charon::opaque]
     #[drive(skip)]
     pub origin: PredicateOrigin,
     /// The trait that is implemented.
@@ -369,24 +368,24 @@ impl<T> BindingStack<T> {
     pub fn get_var<'a, Id: Idx, Inner>(&'a self, var: DeBruijnVar<Id>) -> Option<&'a Inner::Output>
     where
         T: Borrow<Inner>,
-        Inner: HasIdxMapOf<Id> + 'a,
+        Inner: HasIdxVecOf<Id> + 'a,
     {
         let (dbid, varid) = self.as_bound_var(var);
         self.get(dbid)
-            .and_then(|x| x.borrow().get_idx_map().get(varid))
+            .and_then(|x| x.borrow().get_idx_vec().get(varid))
     }
     pub fn get_mut(&mut self, id: DeBruijnId) -> Option<&mut T> {
         let index = self.real_index(id)?;
         self.stack.get_mut(index)
     }
     /// Iterate over the binding levels, from the innermost (0) out.
-    pub fn iter(&self) -> impl Iterator<Item = &T> + DoubleEndedIterator + ExactSizeIterator {
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &T> + ExactSizeIterator {
         self.stack.iter().rev()
     }
     /// Iterate over the binding levels, from the innermost (0) out.
     pub fn iter_enumerated(
         &self,
-    ) -> impl Iterator<Item = (DeBruijnId, &T)> + DoubleEndedIterator + ExactSizeIterator {
+    ) -> impl DoubleEndedIterator<Item = (DeBruijnId, &T)> + ExactSizeIterator {
         self.iter()
             .enumerate()
             .map(|(i, x)| (DeBruijnId::new(i), x))

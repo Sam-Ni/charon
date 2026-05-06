@@ -1,9 +1,10 @@
 //! Machinery to resolve a string path into a `DefId`. Based on `clippy_utils::def_path_res`.
 use std::sync::Arc;
 
+use crate::hax;
+use crate::hax::{BaseState, SInto};
 use anyhow::bail;
 use charon_lib::name_matcher::NamePattern;
-use hax::{BaseState, SInto};
 use itertools::Itertools;
 use rustc_ast::Mutability;
 use rustc_hir::def_id::{CrateNum, DefId, LOCAL_CRATE};
@@ -37,8 +38,10 @@ fn find_primitive_impls<'tcx>(
         "u32" => SimplifiedType::Uint(UintTy::U32),
         "u64" => SimplifiedType::Uint(UintTy::U64),
         "u128" => SimplifiedType::Uint(UintTy::U128),
+        "f16" => SimplifiedType::Float(FloatTy::F16),
         "f32" => SimplifiedType::Float(FloatTy::F32),
         "f64" => SimplifiedType::Float(FloatTy::F64),
+        "f128" => SimplifiedType::Float(FloatTy::F128),
         _ => {
             return [].iter().copied();
         }
@@ -61,6 +64,7 @@ fn find_primitive_impls<'tcx>(
 pub fn def_path_def_ids<'a, 'tcx>(
     s: &impl BaseState<'tcx>,
     pat: &'a NamePattern,
+    strict: bool,
 ) -> anyhow::Result<Vec<DefId>> {
     use charon_lib::name_matcher::{PatElem, PatTy};
     let tcx = s.base().tcx;
@@ -104,7 +108,7 @@ pub fn def_path_def_ids<'a, 'tcx>(
                     ] => match generics.as_slice() {
                         [] => bail!("malformed trait impl pattern"),
                         [PatTy::Pat(self_pat)] => {
-                            let impls = def_path_def_ids(s, impl_pat)?
+                            let impls = def_path_def_ids(s, impl_pat, strict)?
                                 .into_iter()
                                 .flat_map(|trait_def_id| tcx.all_impls(trait_def_id));
                             match self_pat.elems.as_slice() {
@@ -112,7 +116,7 @@ pub fn def_path_def_ids<'a, 'tcx>(
                                     items = impls.collect_vec();
                                 }
                                 _ => {
-                                    let self_ty_def_ids = def_path_def_ids(s, self_pat)?;
+                                    let self_ty_def_ids = def_path_def_ids(s, self_pat, strict)?;
                                     items = impls
                                         .filter(|impl_def_id| {
                                             let impl_self_ty = tcx
@@ -163,7 +167,7 @@ pub fn def_path_def_ids<'a, 'tcx>(
                 ),
             }
         }
-        if items.is_empty() {
+        if strict && items.is_empty() {
             let prefix = NamePattern {
                 elems: pat.elems[..=i].to_vec(),
             };

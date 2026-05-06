@@ -8,8 +8,8 @@
     code-generation code is in `charon/src/bin/generate-ml`. *)
 
 open Identifiers
-open Meta
-open Values
+open Generated_Meta
+open Generated_Values
 module TypeVarId = IdGen ()
 module TypeDeclId = IdGen ()
 module VariantId = IdGen ()
@@ -288,8 +288,9 @@ and constant_expr = { kind : constant_expr_kind; ty : ty }
     - an enumeration with one variant and no fields is a constant.
     - a structure with no field is a constant.
     - sometimes, Rust stores the initialization of an ADT as a constant (if all
-      the fields are constant) rather than as an aggregated value We later
-      desugar those to regular ADTs, see [regularize_constant_adts.rs].
+      the fields are constant) rather than as an aggregated value
+
+    We later desugar those to regular ADTs, see [regularize_constant_adts.rs].
 
     [[ConstantExprKind::Global]] case: access to a global variable. We later
     desugar it to a copy of a place global.
@@ -424,12 +425,7 @@ and generic_args = {
   trait_refs : trait_ref list;
 }
 
-(** Generic parameters for a declaration. We group the generics which come from
-    the Rust compiler substitutions (the regions, types and const generics) as
-    well as the trait clauses. The reason is that we consider that those are
-    parameters that need to be filled. We group in a different place the
-    predicates which are not trait clauses, because those enforce constraints
-    but do not need to be filled with witnesses/instances. *)
+(** Generic parameters for a declaration, including predicates. *)
 and generic_params = {
   regions : region_param list;
   types : type_param list;
@@ -462,6 +458,16 @@ and lifetime_mutability =
 
 (** .0 outlives .1 *)
 and ('a0, 'a1) outlives_pred = 'a0 * 'a1
+
+(** Where a given predicate came from. *)
+and predicate_origin =
+  | WhereClauseOnFn
+  | WhereClauseOnType
+  | WhereClauseOnImpl
+  | TraitSelf
+  | WhereClauseOnTrait
+  | TraitItem of trait_item_name
+  | OriginDyn  (** Clauses that are part of a [dyn Trait] type. *)
 
 and provenance =
   | ProvGlobal of global_decl_ref
@@ -529,6 +535,9 @@ and trait_param = {
       (** Index identifying the clause among other clauses bound at the same
           level. *)
   span : span option;
+  origin : predicate_origin;
+      (** Where the predicate was written, relative to the item that requires
+          it. *)
   trait : trait_decl_ref region_binder;  (** The trait that is implemented. *)
 }
 
@@ -651,9 +660,11 @@ and ty_kind =
           - user-defined ADTs
           - tuples (including [unit], which is a 0-tuple)
           - built-in types (includes some primitive types, e.g., arrays or
-            slices) The information on the nature of the ADT is stored in
-            ([TypeId])[TypeId]. The last list is used encode const generics,
-            e.g., the size of an array
+            slices)
+
+          The information on the nature of the ADT is stored in
+          ([TypeId])[TypeId]. The last list is used encode const generics, e.g.,
+          the size of an array
 
           Note: this is incorrectly named: this can refer to any valid
           [TypeDecl] including extern types. *)
@@ -852,9 +863,42 @@ and item_meta = {
   is_local : bool;
       (** [true] if the type decl is a local type decl, [false] if it comes from
           an external crate. *)
+  opacity : item_opacity;
+      (** Whether this item is considered opaque. For function and globals, this
+          means we don't translate the body (the code); for ADTs, this means we
+          don't translate the fields/variants. For traits and trait impls, this
+          doesn't change anything. For modules, this means we don't explore its
+          contents (we still translate any of its items mentioned from somewhere
+          else).
+
+          This can happen either if the item was annotated with
+          [#[charon::opaque]] or if it was declared opaque via a command-line
+          argument. *)
   lang_item : string option;
       (** If the item is built-in, record its internal builtin identifier. *)
 }
+
+and item_opacity =
+  | Transparent  (** Translate the item fully. *)
+  | Foreign
+      (** Translate the item depending on the normal rust visibility of its
+          contents: for types, we translate fully if it is a struct with public
+          fields or an enum; for other items this is equivalent to [Opaque]. *)
+  | ItemOpaque
+      (** Translate the item name and signature, but not its contents. For
+          function and globals, this means we don't translate the body (the
+          code); for ADTs, this means we don't translate the fields/variants.
+          For traits and trait impls, this doesn't change anything. For modules,
+          this means we don't explore its contents (we still translate any of
+          its items mentioned from somewhere else).
+
+          This can happen either if the item was annotated with
+          [#[charon::opaque]] or if it was declared opaque via a command-line
+          argument. *)
+  | Invisible
+      (** Translate nothing of this item. The corresponding map will not have an
+          entry for the [ItemId]. Useful when even the signature of the item
+          causes errors. *)
 
 (** Item kind: whether this function/const is part of a trait declaration, trait
     implementation, or neither.
@@ -992,6 +1036,9 @@ and path_elem =
       (** This item was obtained by instantiating its parent with the given
           args. The binder binds the parameters of the new items. If the binder
           binds nothing then this is a monomorphization. *)
+  | PeTarget of string
+      (** This item is only available on the given target. Only appears in
+          multi-target mode. *)
 
 (** The metadata stored in a pointer. That's the information stored in pointers
     alongside their address. It's empty for [Sized] types, and interesting for
@@ -1067,10 +1114,10 @@ and type_decl = {
       (** The context of the type: distinguishes top-level items from
           closure-related items. *)
   kind : type_decl_kind;  (** The type kind: enum, struct, or opaque. *)
-  layout : layout option;
-      (** The layout of the type. Information may be partial because of generics
-          or dynamically- sized types. If rustc cannot compute a layout, it is
-          [None]. *)
+  layout : (string * layout) list;
+      (** The layout of the type for each target. Information may be partial
+          because of generics or dynamically-sized types. If we cannot compute a
+          layout, the target has no entry. *)
   ptr_metadata : ptr_metadata;
       (** The metadata associated with a pointer to the type. *)
   repr : repr_options option;

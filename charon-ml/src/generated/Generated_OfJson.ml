@@ -286,6 +286,7 @@ and builtin_impl_data_of_json (ctx : of_json_ctx) (js : json) :
     | `String "FnOnce" -> Ok BuiltinFnOnce
     | `String "Copy" -> Ok BuiltinCopy
     | `String "Clone" -> Ok BuiltinClone
+    | `String "RemovedAdtClause" -> Ok BuiltinRemovedAdtClause
     | _ -> Error "")
 
 and builtin_index_op_of_json (ctx : of_json_ctx) (js : json) :
@@ -1621,17 +1622,17 @@ module Ullbc = struct
                 [
                   ("kind", kind);
                   ("place", place);
-                  ("tref", tref);
+                  ("fn_ptr", fn_ptr);
                   ("target", target);
                   ("on_unwind", on_unwind);
                 ] );
           ] ->
           let* kind = drop_kind_of_json ctx kind in
           let* place = place_of_json ctx place in
-          let* tref = trait_ref_of_json ctx tref in
+          let* fn_ptr = fn_ptr_of_json ctx fn_ptr in
           let* target = block_id_of_json ctx target in
           let* on_unwind = block_id_of_json ctx on_unwind in
-          Ok (Drop (kind, place, tref, target, on_unwind))
+          Ok (Drop (kind, place, fn_ptr, target, on_unwind))
       | `Assoc
           [
             ( "Assert",
@@ -1726,7 +1727,7 @@ module Llbc = struct
           Ok (PlaceMention place_mention)
       | `Assoc [ ("Drop", `List [ x_0; x_1; x_2 ]) ] ->
           let* x_0 = place_of_json ctx x_0 in
-          let* x_1 = trait_ref_of_json ctx x_1 in
+          let* x_1 = fn_ptr_of_json ctx x_1 in
           let* x_2 = drop_kind_of_json ctx x_2 in
           Ok (Drop (x_0, x_1, x_2))
       | `Assoc
@@ -1932,6 +1933,7 @@ and cli_options_of_json (ctx : of_json_ctx) (js : json) :
           ("dest_dir", dest_dir);
           ("dest_file", dest_file);
           ("no_dedup_serialized_ast", no_dedup_serialized_ast);
+          ("format", format);
           ("no_serialize", no_serialize);
           ("no_typecheck", no_typecheck);
           ("no_normalize", no_normalize);
@@ -1993,6 +1995,9 @@ and cli_options_of_json (ctx : of_json_ctx) (js : json) :
         let* no_dedup_serialized_ast =
           bool_of_json ctx no_dedup_serialized_ast
         in
+        let* format =
+          option_of_json serialization_format_arg_of_json ctx format
+        in
         let* no_serialize = bool_of_json ctx no_serialize in
         let* no_typecheck = bool_of_json ctx no_typecheck in
         let* no_normalize = bool_of_json ctx no_normalize in
@@ -2039,6 +2044,7 @@ and cli_options_of_json (ctx : of_json_ctx) (js : json) :
              dest_dir;
              dest_file;
              no_dedup_serialized_ast;
+             format;
              no_serialize;
              no_typecheck;
              no_normalize;
@@ -2614,6 +2620,15 @@ and repr_options_of_json (ctx : of_json_ctx) (js : json) :
             : repr_options)
     | _ -> Error "")
 
+and serialization_format_arg_of_json (ctx : of_json_ctx) (js : json) :
+    (serialization_format_arg, string) result =
+  combine_error_msgs js __FUNCTION__
+    (match js with
+    | `String "Json" -> Ok Json
+    | `String "Postcard" -> Ok Postcard
+    | `String "All" -> Ok AllFormats
+    | _ -> Error "")
+
 and tag_encoding_of_json (ctx : of_json_ctx) (js : json) :
     (tag_encoding, string) result =
   combine_error_msgs js __FUNCTION__
@@ -2782,11 +2797,18 @@ and trait_method_of_json (ctx : of_json_ctx) (js : json) :
     (trait_method, string) result =
   combine_error_msgs js __FUNCTION__
     (match js with
-    | `Assoc [ ("name", name); ("attr_info", attr_info); ("item", item) ] ->
+    | `Assoc
+        [
+          ("name", name);
+          ("attr_info", attr_info);
+          ("signature", signature);
+          ("item", item);
+        ] ->
         let* name = trait_item_name_of_json ctx name in
         let* attr_info = attr_info_of_json ctx attr_info in
+        let* signature = fun_sig_of_json ctx signature in
         let* item = fun_decl_ref_of_json ctx item in
-        Ok ({ name; attr_info; item } : trait_method)
+        Ok ({ name; attr_info; signature; item } : trait_method)
     | _ -> Error "")
 
 and translated_crate_of_json (ctx : of_json_ctx) (js : json) :
@@ -2806,7 +2828,6 @@ and translated_crate_of_json (ctx : of_json_ctx) (js : json) :
           ("global_decls", global_decls);
           ("trait_decls", trait_decls);
           ("trait_impls", trait_impls);
-          ("unit_metadata", unit_metadata);
           ("ordered_decls", ordered_decls);
         ] ->
         let* crate_name = string_of_json ctx crate_name in
@@ -2844,9 +2865,6 @@ and translated_crate_of_json (ctx : of_json_ctx) (js : json) :
           opt_indexed_map_of_json trait_impl_id_of_json trait_impl_of_json ctx
             trait_impls
         in
-        let* unit_metadata =
-          option_of_json global_decl_ref_of_json ctx unit_metadata
-        in
         let* ordered_decls =
           option_of_json
             (list_of_json declaration_group_of_json)
@@ -2865,7 +2883,6 @@ and translated_crate_of_json (ctx : of_json_ctx) (js : json) :
              global_decls;
              trait_decls;
              trait_impls;
-             unit_metadata;
              ordered_decls;
            }
             : translated_crate)

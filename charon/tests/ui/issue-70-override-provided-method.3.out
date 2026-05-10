@@ -93,18 +93,6 @@ where
     non-dyn-compatible
 }
 
-// Full name: UNIT_METADATA
-fn UNIT_METADATA()
-{
-    let _0: (); // return
-
-    _0 = ()
-    return
-}
-
-// Full name: UNIT_METADATA
-const UNIT_METADATA: () = UNIT_METADATA()
-
 // Full name: test_crate::GenericTrait
 trait GenericTrait<Self, T>
 {
@@ -151,8 +139,8 @@ where
         _0 = ()
     }
     storage_dead(_3)
-    conditional_drop[{built_in impl Destruct for U}] y_2
-    conditional_drop[{built_in impl Destruct for T}] x_1
+    conditional_drop[{built_in impl Destruct for U}::drop_in_place] y_2
+    conditional_drop[{built_in impl Destruct for T}::drop_in_place] x_1
     return
 }
 
@@ -209,7 +197,7 @@ where
         _0 = ()
     }
     storage_dead(_3)
-    conditional_drop[{built_in impl Destruct for U}] y_2
+    conditional_drop[{built_in impl Destruct for U}::drop_in_place] y_2
     return
 }
 
@@ -280,8 +268,8 @@ where
         _0 = ()
     }
     storage_dead(_3)
-    conditional_drop[{built_in impl Destruct for U}] y_2
-    conditional_drop[{built_in impl Destruct for Option<T>[@TraitClause0]}] x_1
+    conditional_drop[{built_in impl Destruct for U}::drop_in_place] y_2
+    conditional_drop[{built_in impl Destruct for Option<T>[@TraitClause0]}::drop_in_place] x_1
     return
 }
 

@@ -2,7 +2,6 @@ use super::translate_crate::*;
 use super::translate_ctx::*;
 use crate::hax;
 use crate::hax::SInto;
-use charon_lib::ast::ullbc_ast_utils::BodyBuilder;
 use charon_lib::ast::*;
 use charon_lib::formatter::IntoFormatter;
 use charon_lib::pretty::FmtWithCtx;
@@ -281,64 +280,6 @@ impl<'tcx> TranslateCtx<'tcx> {
         }
         let item = self.translated.get_item(id);
         Ok(item.unwrap())
-    }
-
-    /// Add a `const UNIT: () = ();` const, used as metadata for thin pointers/references.
-    pub fn translate_unit_metadata_const(&mut self) {
-        use charon_lib::ullbc_ast::*;
-        let name = Name::from_path(&["UNIT_METADATA"]);
-        let item_meta = ItemMeta {
-            name: name.clone(),
-            span: Span::dummy(),
-            source_text: None,
-            attr_info: AttrInfo::default(),
-            is_local: false,
-            opacity: ItemOpacity::Foreign,
-            lang_item: None,
-        };
-
-        let body = {
-            let mut builder = BodyBuilder::new(Span::dummy(), 0);
-            let _ = builder.new_var(None, Ty::mk_unit());
-            builder.build()
-        };
-
-        let global_id = self.translated.global_decls.reserve_slot();
-        let initializer = self.translated.fun_decls.push_with(|def_id| FunDecl {
-            def_id,
-            item_meta: item_meta.clone(),
-            src: ItemSource::TopLevel,
-            is_global_initializer: Some(global_id),
-            generics: Default::default(),
-            signature: FunSig {
-                is_unsafe: false,
-                inputs: vec![],
-                output: Ty::mk_unit(),
-            },
-            body: Body::Unstructured(body),
-        });
-        self.translated
-            .item_names
-            .insert(ItemId::Fun(initializer), name.clone());
-        self.translated.global_decls.set_slot(
-            global_id,
-            GlobalDecl {
-                def_id: global_id,
-                item_meta,
-                generics: Default::default(),
-                ty: Ty::mk_unit(),
-                src: ItemSource::TopLevel,
-                global_kind: GlobalKind::NamedConst,
-                init: initializer,
-            },
-        );
-        self.translated
-            .item_names
-            .insert(ItemId::Global(global_id), name);
-        self.translated.unit_metadata = Some(GlobalDeclRef {
-            id: global_id,
-            generics: Box::new(GenericArgs::empty()),
-        });
     }
 
     /// Keep only the methods we marked as "used".
@@ -736,13 +677,6 @@ impl ItemTransCtx<'_, '_> {
             TraitRefKind::SelfId,
             RegionBinder::empty(self.translate_trait_predicate(span, self_predicate)?),
         );
-        let items: Vec<(TraitItemName, &hax::AssocItem)> = items
-            .iter()
-            .map(|item| -> Result<_, Error> {
-                let name = self.t_ctx.translate_trait_item_name(&item.def_id)?;
-                Ok((name, item))
-            })
-            .try_collect()?;
 
         // Translate the associated items
         let mut consts = Vec::new();
@@ -765,8 +699,9 @@ impl ItemTransCtx<'_, '_> {
             });
         }
 
-        for &(item_name, hax_item) in &items {
+        for hax_item in items {
             let item_def_id = &hax_item.def_id;
+            let item_name = self.translate_trait_item_name(item_def_id)?;
             let item_span = self.def_span(item_def_id);
 
             // In --mono mode, we keep only non-polymorphic items; in not-mono mode, we use the
@@ -782,7 +717,7 @@ impl ItemTransCtx<'_, '_> {
             let attr_info = self.translate_attr_info(&item_def);
 
             match item_def.kind() {
-                hax::FullDefKind::AssocFn { .. } => {
+                hax::FullDefKind::AssocFn { sig, .. } => {
                     let method_id = self.register_no_enqueue(item_span, &item_src);
                     // Register this method.
                     self.register_method_impl(def_id, item_name, method_id);
@@ -816,9 +751,14 @@ impl ItemTransCtx<'_, '_> {
                                 id: method_id,
                                 generics: Box::new(fun_generics),
                             };
+                            // `skip_binder` is allowed because `translate_binder_for_def` puts the
+                            // late bound params in scope.
+                            let signature =
+                                bt_ctx.translate_fun_sig(span, sig.hax_skip_binder_ref())?;
                             Ok(TraitMethod {
                                 name: item_name,
                                 attr_info,
+                                signature,
                                 item: fn_ref,
                             })
                         },
@@ -948,10 +888,21 @@ impl ItemTransCtx<'_, '_> {
             let (method_name, method_binder) =
                 self.prepare_drop_in_place_method(def, span, def_id, None);
             self.mark_method_as_used(def_id, method_name);
-            methods.push(method_binder.map(|fn_ref| TraitMethod {
-                name: method_name,
-                attr_info: AttrInfo::dummy_public(),
-                item: fn_ref,
+            methods.push(method_binder.map(|fn_ref| {
+                let self_ty = if self.monomorphize() {
+                    // FIXME: put something real here
+                    Ty::mk_unit()
+                } else {
+                    TyKind::TypeVar(DeBruijnVar::bound(DeBruijnId::one(), TypeVarId::ZERO))
+                        .into_ty()
+                };
+                let signature = self.drop_in_place_method_sig(self_ty);
+                TraitMethod {
+                    name: method_name,
+                    item: fn_ref,
+                    attr_info: AttrInfo::dummy_public(),
+                    signature,
+                }
             }));
         }
 

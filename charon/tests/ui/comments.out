@@ -71,18 +71,6 @@ where
     [@TraitClause0]: Sized<T>,
 = <opaque>
 
-// Full name: UNIT_METADATA
-fn UNIT_METADATA()
-{
-    let _0: (); // return
-
-    _0 = ()
-    return
-}
-
-// Full name: UNIT_METADATA
-const UNIT_METADATA: () = UNIT_METADATA()
-
 // Full name: test_crate::function_call
 fn function_call(_1: u32)
 {
@@ -299,7 +287,7 @@ where
 
     _0 = ()
     _0 = ()
-    conditional_drop[{built_in impl Destruct for T}] _1
+    conditional_drop[{built_in impl Destruct for T}::drop_in_place] _1
     return
 }
 

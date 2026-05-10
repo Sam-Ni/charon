@@ -256,18 +256,6 @@ where
     [@TraitClause0]: Sized<T>,
 = <opaque>
 
-// Full name: UNIT_METADATA
-fn UNIT_METADATA()
-{
-    let _0: (); // return
-
-    _0 = ()
-    return
-}
-
-// Full name: UNIT_METADATA
-const UNIT_METADATA: () = UNIT_METADATA()
-
 // Full name: test_crate::<array>::{impl Destruct for [T; N]}::drop_in_place
 unsafe fn {impl Destruct for [T; N]}::drop_in_place<T, const N : usize>(_1: *mut [T; N])
 where
@@ -309,7 +297,7 @@ where
             _10 = @SliceIndexMut<'_, T>(move _9, copy _6)
             _7 = &raw mut (*_10)
             _6 = move _6 wrap.+ const 1 : usize
-            drop[{built_in impl Destruct for T}] (*_7)
+            drop[{built_in impl Destruct for T}::drop_in_place] (*_7)
             continue 0
         }
     }
@@ -399,7 +387,7 @@ where
     storage_dead(_3)
     _0 = len<'6, T>[@TraitClause0](move _2)
     storage_dead(_2)
-    conditional_drop[{impl Destruct for [T; N]}<T, 32 : usize>[@TraitClause0]] s_1
+    conditional_drop[{impl Destruct for [T; N]}::drop_in_place<T, 32 : usize>[@TraitClause0]] s_1
     return
 }
 

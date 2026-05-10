@@ -1,4 +1,4 @@
-use charon_lib::options::CliOpts;
+use charon_lib::options::{CliOpts, SerializationFormat};
 use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -13,7 +13,8 @@ pub struct Cli {
 pub enum Charon {
     /// Runs charon on a single rust file (and the modules it references, if any).
     Rustc(RustcArgs),
-    /// Runs charon on a cargo project.
+    /// Runs charon on a cargo project. If a `[package.metadata.charon]` section is present in
+    /// `Cargo.toml`, options are also read from it.
     Cargo(CargoArgs),
     /// Print the path to the rustc toolchain used by charon.
     ToolchainPath(ToolchainPathArgs),
@@ -28,6 +29,9 @@ pub enum Charon {
 pub struct PrettyPrintArgs {
     /// Single file path to llbc or ullbc
     pub file: PathBuf,
+    /// Serialization format of the input file.
+    #[arg(long, value_enum, default_value_t)]
+    pub format: SerializationFormat,
 }
 
 /// Usage: `charon cargo [charon options] -- [rustc options]`

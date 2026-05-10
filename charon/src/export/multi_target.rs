@@ -85,7 +85,11 @@ impl CrateMerger {
                 if let Some(&existing_id) = self.file_name_to_id.get(&file.name) {
                     existing_id
                 } else {
-                    let new_id = self.merged.translated.files.push(file.clone());
+                    let new_id = self.merged.translated.files.push_with(|new_id| {
+                        let mut file = file.clone();
+                        file.id = new_id;
+                        file
+                    });
                     self.file_name_to_id.insert(file.name.clone(), new_id);
                     new_id
                 }
@@ -149,7 +153,6 @@ impl CrateMerger {
             global_decls,
             trait_decls,
             trait_impls,
-            unit_metadata,
             ordered_decls: _, // Recomputed on the merged crate
         } = krate;
         if self.merged.translated.crate_name.is_empty() {
@@ -180,9 +183,6 @@ impl CrateMerger {
             .translated
             .trait_impls
             .extend_from_other(trait_impls);
-        if self.merged.translated.unit_metadata.is_none() {
-            self.merged.translated.unit_metadata = unit_metadata;
-        }
     }
 }
 

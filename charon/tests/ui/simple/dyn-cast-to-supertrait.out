@@ -17,18 +17,6 @@ pub trait Destruct<Self>
 unsafe fn core::marker::Destruct::drop_in_place<Self>(_1: *mut Self)
 = <opaque>
 
-// Full name: UNIT_METADATA
-fn UNIT_METADATA()
-{
-    let _0: (); // return
-
-    _0 = ()
-    return
-}
-
-// Full name: UNIT_METADATA
-const UNIT_METADATA: () = UNIT_METADATA()
-
 struct test_crate::Feline::{vtable} {
   size: usize,
   align: usize,
@@ -153,7 +141,7 @@ unsafe fn {impl Feline for HouseCat}::{vtable_drop_shim}(dyn_self_1: *mut (dyn F
     ret_0 = ()
     storage_live(target_self_2)
     target_self_2 = concretize<*mut (dyn Feline + '1), *mut HouseCat>(move dyn_self_1)
-    drop[{impl Destruct for HouseCat}] (*target_self_2)
+    drop[{impl Destruct for HouseCat}::drop_in_place] (*target_self_2)
     return
 }
 
@@ -217,7 +205,7 @@ unsafe fn {impl Pettable for HouseCat}::{vtable_drop_shim}(dyn_self_1: *mut (dyn
     ret_0 = ()
     storage_live(target_self_2)
     target_self_2 = concretize<*mut (dyn Pettable + '1), *mut HouseCat>(move dyn_self_1)
-    drop[{impl Destruct for HouseCat}] (*target_self_2)
+    drop[{impl Destruct for HouseCat}::drop_in_place] (*target_self_2)
     return
 }
 
@@ -281,7 +269,7 @@ unsafe fn {impl Cat for HouseCat}::{vtable_drop_shim}(dyn_self_1: *mut (dyn Cat)
     ret_0 = ()
     storage_live(target_self_2)
     target_self_2 = concretize<*mut (dyn Cat + '1), *mut HouseCat>(move dyn_self_1)
-    drop[{impl Destruct for HouseCat}] (*target_self_2)
+    drop[{impl Destruct for HouseCat}::drop_in_place] (*target_self_2)
     return
 }
 

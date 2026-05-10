@@ -1,11 +1,36 @@
-use crate::translate::translate_crate::TransItemSourceKind;
+use rustc_middle::ty;
 
 use super::translate_ctx::*;
 use crate::hax;
 use crate::hax::FullDefKind;
+use crate::translate::translate_crate::TransItemSourceKind;
 use charon_lib::{ast::*, formatter::IntoFormatter, pretty::FmtWithCtx};
 
-impl ItemTransCtx<'_, '_> {
+impl<'tcx> ItemTransCtx<'tcx, '_> {
+    /// Translate a call to `drop_in_place` for that type.
+    pub fn translate_drop_in_place_method_call(
+        &mut self,
+        span: Span,
+        ty: ty::Ty<'tcx>,
+    ) -> Result<FnPtr, Error> {
+        let impl_expr = hax::solve_destruct(self.hax_state_with_id(), ty);
+        let tref = self.translate_trait_impl_expr(span, &impl_expr)?;
+        let method_id = self.register_item(
+            span,
+            impl_expr.r#trait.hax_skip_binder_ref(),
+            TransItemSourceKind::DropInPlaceMethod(None),
+        );
+        let fn_ptr = FnPtr {
+            kind: Box::new(FnPtrKind::Trait(
+                tref,
+                TraitItemName("drop_in_place".into()),
+                method_id,
+            )),
+            generics: Box::new(GenericArgs::empty()),
+        };
+        Ok(fn_ptr)
+    }
+
     fn translate_drop_in_place_method_body(
         &mut self,
         span: Span,
@@ -31,6 +56,7 @@ impl ItemTransCtx<'_, '_> {
 
         let body = {
             let ctx = std::panic::AssertUnwindSafe(&mut *self);
+            let def = std::panic::AssertUnwindSafe(def);
             // This is likely to panic, see the docs of `--precise-drops`.
             let Ok(body) =
                 std::panic::catch_unwind(move || def.this().drop_glue_shim(ctx.hax_state()))
@@ -93,6 +119,7 @@ impl ItemTransCtx<'_, '_> {
             .unwrap()
             .clone();
 
+        let signature = self.drop_in_place_method_sig(self_ty.clone());
         let src = match impl_kind {
             Some(impl_kind) => {
                 let destruct_impl_id =
@@ -121,13 +148,6 @@ impl ItemTransCtx<'_, '_> {
             self.translate_drop_in_place_method_body(span, def, &self_ty)?
         };
 
-        let input = TyKind::RawPtr(self_ty, RefKind::Mut).into_ty();
-        let signature = FunSig {
-            is_unsafe: true,
-            inputs: vec![input],
-            output: Ty::mk_unit(),
-        };
-
         Ok(FunDecl {
             def_id,
             item_meta,
@@ -137,6 +157,16 @@ impl ItemTransCtx<'_, '_> {
             is_global_initializer: None,
             body,
         })
+    }
+
+    // Small helper to deduplicate. Generates the signature `*mut self_ty -> ()`.
+    pub fn drop_in_place_method_sig(&self, self_ty: Ty) -> FunSig {
+        let self_ptr = TyKind::RawPtr(self_ty, RefKind::Mut).into_ty();
+        FunSig {
+            is_unsafe: true,
+            inputs: [self_ptr].into(),
+            output: Ty::mk_unit(),
+        }
     }
 
     // Small helper to deduplicate.

@@ -383,12 +383,9 @@ impl ItemTransCtx<'_, '_> {
                     } else {
                         let self_ty =
                             TyKind::TypeVar(DeBruijnVar::new_at_zero(TypeVarId::ZERO)).into_ty();
-                        let self_ptr = TyKind::RawPtr(self_ty, RefKind::Mut).into_ty();
-                        let drop_ty = Ty::new(TyKind::FnPtr(RegionBinder::empty(FunSig {
-                            is_unsafe: true,
-                            inputs: [self_ptr].into(),
-                            output: Ty::mk_unit(),
-                        })));
+                        let drop_ty = Ty::new(TyKind::FnPtr(RegionBinder::empty(
+                            self.drop_in_place_method_sig(self_ty),
+                        )));
                         ("drop".into(), drop_ty)
                     }
                 }
@@ -1294,24 +1291,13 @@ impl ItemTransCtx<'_, '_> {
         );
         builder.push_statement(StatementKind::Assign(target_self.clone(), rval));
 
-        // Build a reference to `impl Destruct for T`. Given the
-        // target_receiver type `T`, use Hax to solve `T: Destruct`
-        // and translate the resolved result to `TraitRef` of the
-        // `drop_in_place`
-        let destruct_trait = self.tcx.lang_items().destruct_trait().unwrap();
-        let impl_expr: hax::ImplExpr = {
-            let s = self.hax_state_with_id();
-            let rustc_trait_args = trait_pred.trait_ref.rustc_args(s);
-            let generics = self.tcx.mk_args(&rustc_trait_args[..1]); // keep only the `Self` type
-            let tref =
-                rustc_middle::ty::TraitRef::new_from_args(self.tcx, destruct_trait, generics);
-            hax::solve_trait(s, rustc_middle::ty::Binder::dummy(tref))
-        };
-        let tref = self.translate_trait_impl_expr(span, &impl_expr)?;
+        let rustc_trait_args = trait_pred.trait_ref.rustc_args(self.hax_state_with_id());
+        let rustc_self_ty = rustc_trait_args[0].as_type().unwrap();
+        let fn_ptr = self.translate_drop_in_place_method_call(span, rustc_self_ty)?;
 
         // Drop(*target_self)
         let drop_arg = target_self.clone().deref();
-        builder.insert_drop(drop_arg, tref);
+        builder.insert_drop(drop_arg, fn_ptr);
 
         Ok(Body::Unstructured(builder.build()))
     }
@@ -1333,30 +1319,24 @@ impl ItemTransCtx<'_, '_> {
             raise_error!(
                 self,
                 span,
-                "Trying to generate a vtable drop shim for a non-trait impl"
+                "Trying to generate a vtable drop shim for a non-dyn-compatible trait impl"
             );
         };
 
-        // `*mut dyn Trait`
-        let ref_dyn_self =
-            TyKind::RawPtr(self.translate_ty(span, dyn_self)?, RefKind::Mut).into_ty();
+        let dyn_self = self.translate_ty(span, dyn_self)?;
+        // `*mut dyn Trait -> ()`
+        let signature = self.drop_in_place_method_sig(dyn_self.clone());
+
         // `*mut T` for `impl Trait for T`
-        let ref_target_self = {
+        let target_self_ptr = {
             let impl_trait = self.translate_trait_ref(span, &trait_pred.trait_ref)?;
             TyKind::RawPtr(impl_trait.generics.types[0].clone(), RefKind::Mut).into_ty()
         };
 
-        // `*mut dyn Trait -> ()`
-        let signature = FunSig {
-            is_unsafe: true,
-            inputs: vec![ref_dyn_self.clone()],
-            output: Ty::mk_unit(),
-        };
-
         let body: Body = self.translate_vtable_drop_shim_body(
             span,
-            &ref_dyn_self,
-            &ref_target_self,
+            &signature.inputs[0],
+            &target_self_ptr,
             trait_pred,
         )?;
 

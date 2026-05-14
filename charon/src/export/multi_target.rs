@@ -146,6 +146,7 @@ impl CrateMerger {
             options: _, // We discard the per-target options we made
             target_information,
             item_names,
+            assoc_item_names,
             short_names: _, // TODO
             files: _,       // Done above
             type_decls,
@@ -163,6 +164,10 @@ impl CrateMerger {
             .target_information
             .extend(target_information);
         self.merged.translated.item_names.extend(item_names);
+        self.merged
+            .translated
+            .assoc_item_names
+            .extend_from_other(assoc_item_names);
         self.merged
             .translated
             .type_decls
@@ -475,6 +480,18 @@ impl<'a> ItemDeduplicator<'a> {
                     // Insert facade decls later because the id remapping would mess up the
                     // dispatch maps.
                     facade_decls.push(group.build_facade_decl(facade_id, self.krate));
+                    // Mark per-target functions as target-dependent.
+                    for &id in group.ids.values() {
+                        let fun_id = *id.as_fun().unwrap();
+                        if let Some(fun_decl) = self.krate.fun_decls.get_mut(fun_id) {
+                            fun_decl.src = ItemSource::TargetDependent {
+                                dispatcher: FunDeclRef {
+                                    id: facade_id,
+                                    generics: Box::new(fun_decl.generics.identity_args()),
+                                },
+                            };
+                        }
+                    }
                     ItemId::Fun(facade_id)
                 }
             };
@@ -642,9 +659,6 @@ impl VisitAstMut for IdRefMapperVisitor<'_> {
             FnPtrKind::Trait(_, _, id) => self.map(id),
             _ => {}
         }
-    }
-    fn enter_trait_method_ref(&mut self, x: &mut TraitMethodRef) {
-        self.map(&mut x.method_decl_id);
     }
     fn enter_global_decl(&mut self, x: &mut GlobalDecl) {
         self.map(&mut x.init);

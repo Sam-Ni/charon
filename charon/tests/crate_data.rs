@@ -194,8 +194,8 @@ fn predicate_origins() -> anyhow::Result<()> {
                 (WhereClauseOnTrait, "Sized"),
                 (WhereClauseOnTrait, "Copy"),
                 (WhereClauseOnTrait, "Default"),
-                (TraitItem(TraitItemName("AssocType".into())), "Sized"),
-                (TraitItem(TraitItemName("AssocType".into())), "Default"),
+                (TraitItem(AssocTypeId::ZERO), "Sized"),
+                (TraitItem(AssocTypeId::ZERO), "Default"),
             ],
         ),
         // Interesting note: the method definition does not mention the clauses on the trait.
@@ -731,6 +731,41 @@ fn known_trait_method_call() -> anyhow::Result<()> {
     let ItemSource::TraitImpl { .. } = &function.src else {
         panic!()
     };
+    Ok(())
+}
+
+#[test]
+fn target_dispatch_source() -> anyhow::Result<()> {
+    let crate_data = translate_with_options(
+        "
+        #[cfg(target_pointer_width = \"64\")]
+        pub fn platform_val() -> u32 { 64 }
+
+        #[cfg(target_pointer_width = \"32\")]
+        pub fn platform_val() -> u32 { 32 }
+        ",
+        &["--targets=x86_64-apple-darwin,i686-unknown-linux-gnu"],
+    )?;
+
+    // Find the dispatcher (the facade with a TargetDispatch body).
+    let real_dispatcher = crate_data
+        .fun_decls
+        .iter()
+        .find(|f| matches!(f.body, Body::TargetDispatch(_)))
+        .expect("should have a TargetDispatch facade");
+    let Body::TargetDispatch(dispatch_map) = &real_dispatcher.body else {
+        unreachable!()
+    };
+
+    // Each target in the dispatch map should point to a function with
+    // `ItemSource::TargetDependent` whose `dispatcher` points back to the facade.
+    for (_target, fun_ref) in dispatch_map {
+        let target_fun = &crate_data.fun_decls[fun_ref.id];
+        let ItemSource::TargetDependent { dispatcher } = &target_fun.src else {
+            panic!("expected TargetDependent source, got {:?}", target_fun.src)
+        };
+        assert_eq!(dispatcher.id, real_dispatcher.def_id);
+    }
     Ok(())
 }
 

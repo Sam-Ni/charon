@@ -44,7 +44,9 @@ pub enum Region {
 /// definition. Note that every path designated by `TraitInstanceId` refers
 /// to a *trait instance*, which is why the [`TraitRefKind::Clause`] variant may seem redundant
 /// with some of the other variants.
-#[derive(Debug, Clone, SerializeState, DeserializeState, PartialEq, Eq, Hash, Drive, DriveMut)]
+#[derive(
+    Debug, Clone, SerializeState, DeserializeState, PartialEq, Eq, Hash, EnumIsA, Drive, DriveMut,
+)]
 pub enum TraitRefKind {
     /// A specific top-level implementation item.
     TraitImpl(TraitImplRef),
@@ -100,7 +102,7 @@ pub enum TraitRefKind {
     ///                         clause 1 from item W (from local clause 0)
     /// }
     /// ```
-    ItemClause(Box<TraitRef>, TraitItemName, TraitClauseId),
+    ItemClause(Box<TraitRef>, AssocTypeId, TraitClauseId),
 
     /// The implicit `Self: Trait` clause. Present inside trait declarations, including trait
     /// method declarations. Not present in trait implementations as we can use `TraitImpl` intead.
@@ -123,7 +125,7 @@ pub enum TraitRefKind {
         /// FnMut` impl would have a `TraitRef` for `T: FnOnce`.
         parent_trait_refs: IndexVec<TraitClauseId, TraitRef>,
         /// The values of the associated types for this trait.
-        types: Vec<(TraitItemName, TraitAssocTyImpl)>,
+        types: IndexMap<AssocTypeId, TraitAssocTyImpl>,
     },
 
     /// The automatically-generated implementation for `dyn Trait`.
@@ -221,7 +223,7 @@ pub type TypeOutlives = OutlivesPred<Ty, Region>;
 #[derive(Debug, Clone, PartialEq, Eq, Hash, SerializeState, DeserializeState, Drive, DriveMut)]
 pub struct TraitTypeConstraint {
     pub trait_ref: TraitRef,
-    pub type_name: TraitItemName,
+    pub type_id: AssocTypeId,
     pub ty: Ty,
 }
 
@@ -253,7 +255,7 @@ pub struct RegionBinder<T> {
 #[charon::variants_prefix("BK")]
 pub enum BinderKind {
     /// The parameters of a generic associated type.
-    TraitType(TraitDeclId, TraitItemName),
+    TraitType(TraitDeclId, AssocTypeId),
     /// The parameters of a trait method. Used in the `methods` lists in trait decls and trait
     /// impls.
     TraitMethod(TraitDeclId, TraitMethodId),
@@ -343,7 +345,7 @@ pub enum PredicateOrigin {
     //     type AssocType: Clone;
     // }
     // ```
-    TraitItem(TraitItemName),
+    TraitItem(AssocTypeId),
     /// Clauses that are part of a `dyn Trait` type.
     #[charon::rename("OriginDyn")]
     Dyn,
@@ -364,38 +366,32 @@ pub struct VariantLayout {
     /// Note that uninhabited types can have arbitrary layouts.
     #[drive(skip)]
     pub uninhabited: bool,
-    /// The memory representation of the discriminant corresponding to this
-    /// variant. It must be of the same type as the corresponding [`DiscriminantLayout::tag_ty`].
-    ///
-    /// If it's `None`, then this variant is either:
-    /// - the untagged variant (cf. [`TagEncoding::Niche::untagged_variant`]) of a niched enum;
-    /// - the single variant of a struct;
-    /// - uninhabited.
+    /// How to write the tag when constructing this variant. Each entry means: write `value` at
+    /// byte `offset`. Mirrors MiniRust's `Variant::tagger`.
     #[drive(skip)]
-    pub tag: Option<ScalarValue>,
+    pub tagger: Vec<(ByteCount, ScalarValue)>,
 }
 
-/// Describes how we represent the active enum variant in memory.
+/// Decision tree used to determine the active variant by reading memory. Mirrors MiniRust's
+/// `Discriminator`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TagEncoding {
-    /// Represents the direct encoding of the discriminant as the tag via integer casts.
-    Direct,
-    /// Represents the encoding of the discriminant in the niche of variant `untagged_variant`.
-    Niche { untagged_variant: VariantId },
-}
-
-/// Layout of the discriminant.
-/// Describes the offset of the discriminant field as well as its encoding
-/// as `tag` in memory.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DiscriminantLayout {
-    /// The offset of the discriminant in bytes.
-    pub offset: ByteCount,
-    /// The representation type of the discriminant.
-    pub tag_ty: IntegerTy,
-    /// How the tag is encoding in memory.
-    pub encoding: TagEncoding,
-    // FIXME: Should probably contain the valid range of the tag, too.
+pub enum Discriminator {
+    /// The variant is known.
+    Known(VariantId),
+    /// No valid variant (e.g., invalid tag value).
+    Invalid,
+    /// Branch on an integer value read from memory at `offset`.
+    Branch {
+        /// Byte offset to read from.
+        offset: ByteCount,
+        /// Integer type to read.
+        int_ty: IntegerTy,
+        /// If the integer is in one of these ranges, continue with the given `Discriminator`. The
+        /// ranges are sorted.
+        children: Vec<(std::ops::RangeInclusive<ScalarValue>, Discriminator)>,
+        /// Fallback if no range in `children` matches.
+        fallback: Box<Discriminator>,
+    },
 }
 
 /// Simplified type layout information.
@@ -424,9 +420,9 @@ pub struct Layout {
     /// The alignment, in bytes.
     #[drive(skip)]
     pub align: Option<ByteCount>,
-    /// The discriminant's layout, if any. Only relevant for types with multiple variants.
+    /// Decision tree that determines the active variant by reading memory. Only `Some` for enums.
     #[drive(skip)]
-    pub discriminant_layout: Option<DiscriminantLayout>,
+    pub discriminator: Option<Discriminator>,
     /// Whether the type is uninhabited, i.e. has any valid value at all.
     /// Note that uninhabited types can have arbitrary layouts: `(u32, !)` has space for the `u32`
     /// and `enum E2 { A, B(!), C(i32, !) }` may have space for a discriminant.
@@ -452,9 +448,7 @@ pub enum PtrMetadata {
     /// Notably, length for `[T]` denotes the number of elements in the slice.
     /// While for `str` it denotes the number of bytes in the string.
     Length,
-    /// Metadata for `dyn Trait`, referring to the vtable struct,
-    /// also for user-defined types that directly or indirectly contain a `dyn Trait`.
-    /// Of type `&'static vtable`
+    /// Metadata for `dyn Trait`, referring to the vtable struct. Has type `&'static vtable`
     VTable(TypeDeclRef),
     /// Unknown due to generics, but will inherit from the given type.
     /// This is consistent with `<Ty as Pointee>::Metadata`.
@@ -484,7 +478,7 @@ pub enum AlignmentModifier {
 ///
 /// NOTE: This does not include less common/unstable representations such as `#[repr(simd)]`
 /// or the compiler internal `#[repr(linear)]`. Similarly, enum discriminant representations
-/// are encoded in [`Variant::discriminant`] and [`DiscriminantLayout`] instead.
+/// are encoded in [`Variant::discriminant`] and [`Discriminator`] instead.
 /// This only stores whether the discriminant type was derived from an explicit annotation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReprOptions {
@@ -567,6 +561,7 @@ pub enum TypeDeclKind {
 #[derive(Debug, PartialEq, Eq, Clone, SerializeState, DeserializeState, Drive, DriveMut)]
 #[serde_state(stateless)]
 pub struct Variant {
+    pub id: VariantId,
     pub span: Span,
     #[drive(skip)]
     pub attr_info: AttrInfo,
@@ -576,8 +571,8 @@ pub struct Variant {
     #[serde_state(stateful)]
     pub fields: IndexVec<FieldId, Field>,
     /// The discriminant value outputted by `std::mem::discriminant` for this variant. This can be
-    /// different than the value stored in memory (called `tag`). That one is described by
-    /// [`DiscriminantLayout`] and [`TagEncoding`].
+    /// different than the value stored in memory (called `tag`); that one is described by
+    /// [`Discriminator`] and [`VariantLayout::tagger`].
     pub discriminant: Literal,
 }
 
@@ -881,7 +876,7 @@ pub enum TyKind {
     ///   type Bar; // type associated to the trait Foo
     /// }
     /// ```
-    TraitType(TraitRef, TraitItemName),
+    TraitType(TraitRef, AssocTypeId),
     /// `dyn Trait`
     DynTrait(DynPredicate),
     /// Function pointer type. This is a literal pointer to a region of memory that

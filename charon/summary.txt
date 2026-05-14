@@ -1,11 +1,3 @@
-1.
-
-thread 'rustc' (234676) panicked at /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/rustc-src/rust/compiler/rustc_hir/src/def.rs:823:45:
-attempted .def_id() on invalid res: PrimTy(Bool)
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
-warning: Hax panicked when translating `core::primitive`.
- --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/lib.rs:359:1
-
 2.
 
 warning: charon does not support thread local references
@@ -33,69 +25,6 @@ warning: Item is not monomorphic: Mono(ItemRef { contents: HashConsed(ItemRefCon
 note: the error occurred when translating `std::io::impls::{impl std::io::Write for alloc::vec::Vec::<u8, alloc::alloc::Global>}::{vtable}::<alloc::alloc::Global>`, which is (transitively) used at the following location(s):
 warning: Item `std::io::impls::{impl#11}` caused errors; ignoring.
  --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/io/impls.rs:480:1
-
-5.
-
-thread 'rustc' (234676) panicked at src/bin/charon-driver/translate/translate_items.rs:274:38:
-called `Option::unwrap()` on a `None` value
-warning: Thread panicked when extracting item `core::ops::function::FnMut`.
- --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/ops/function.rs:163:1
-
-note: the error occurred when translating `core::ops::function::FnMut`, which is (transitively) used at the following location(s):
-
-thread 'rustc' (234676) panicked at src/bin/charon-driver/translate/translate_items.rs:274:38:
-called `Option::unwrap()` on a `None` value
-warning: Thread panicked when extracting item `core::ops::function::FnOnce`.
- --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/ops/function.rs:242:1
-
-note: the error occurred when translating `core::ops::function::FnOnce`, which is (transitively) used at the following location(s):
-
-thread 'rustc' (234676) panicked at src/bin/charon-driver/translate/translate_items.rs:274:38:
-called `Option::unwrap()` on a `None` value
-warning: Thread panicked when extracting item `core::alloc::Allocator`.
- --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/alloc/mod.rs:106:1
-
-note: the error occurred when translating `core::alloc::Allocator`, which is (transitively) used at the following location(s):
-
-thread 'rustc' (234676) panicked at src/bin/charon-driver/translate/translate_items.rs:274:38:
-called `Option::unwrap()` on a `None` value
-warning: Thread panicked when extracting item `alloc::alloc::{impl#1}`.
- --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/alloc/src/alloc.rs:425:1
-
-note: the error occurred when translating `alloc::alloc::{impl#798}`, which is (transitively) used at the following location(s):
-warning: found a built-in trait impl we did not recognize: core::marker::FnPtr (lang_item=Some("fn_ptr_trait"))
- --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/pal/unix/weak/dlsym.rs:86:5
-
-note: the error occurred when translating `std::sys::pal::unix::weak::dlsym::{std::sys::pal::unix::weak::dlsym::DlsymWeak::<unsafe fn(*const libc::unix::linux_like::linux::gnu::b64::x86_64::pthread_attr_t) -> usize>}::initialize::<unsafe fn(*const libc::unix::linux_like::linux::gnu::b64::x86_64::pthread_attr_t) -> usize>`, which is (transitively) used at the following location(s):
-warning: Error during trait resolution: found a built-in trait impl we did not recognize: core::marker::FnPtr (lang_item=Some("fn_ptr_trait"))
- --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/sys/pal/unix/weak/dlsym.rs:86:5
-
-
-thread 'rustc' (234676) panicked at src/bin/charon-driver/translate/translate_items.rs:274:38:
-called `Option::unwrap()` on a `None` value
-warning: Thread panicked when extracting item `core::clone::Clone`.
- --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/clone.rs:194:1
-
-note: the error occurred when translating `core::clone::Clone`, which is (transitively) used at the following location(s):
-
-thread 'rustc' (234676) panicked at src/bin/charon-driver/translate/translate_items.rs:274:38:
-called `Option::unwrap()` on a `None` value
-warning: Thread panicked when extracting item `alloc::alloc::{impl#4}`.
- --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/alloc/src/alloc.rs:49:16
-
-note: the error occurred when translating `alloc::alloc::{impl#975}`, which is (transitively) used at the following location(s):
-
-thread 'rustc' (234676) panicked at /home/orange/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/index_vec-0.1.4/src/indexing.rs:42:14:
-index out of bounds: the len is 101 but the index is 101
-warning: Thread panicked when extracting item `std::io::Write`.
- --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/io/mod.rs:1717:1
-
-note: the error occurred when translating `std::io::Write`, which is (transitively) used at the following location(s):
-
-thread 'rustc' (234676) panicked at src/bin/charon-driver/translate/translate_items.rs:274:38:
-called `Option::unwrap()` on a `None` value
-warning: Thread panicked when extracting item `core::error::Error`.
- --> /home/orange/.rustup/toolchains/nightly-2026-02-07-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/error.rs:59:1
 
 6.
 

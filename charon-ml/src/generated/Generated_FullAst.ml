@@ -133,12 +133,12 @@ and cli_options = {
           This takes a list of name patterns of the traits to transform, using
           the same syntax as [--include]. *)
   hide_marker_traits : bool;
-      (** Whether to hide various marker traits such as [Sized], [Sync], [Send]
-          and [Destruct] anywhere they show up. This can considerably speed up
+      (** Whether to hide various marker traits such as [Sized], [Sync], and
+          [Send] anywhere they show up. This can considerably speed up
           translation. *)
   remove_adt_clauses : bool;
       (** Remove trait clauses from type declarations. Must be combined with
-          [--remove-associated-types] for type declarations that use trait
+          [--lift-associated-types] for type declarations that use trait
           associated types in their fields, otherwise this will result in
           errors. *)
   hide_allocator : bool;

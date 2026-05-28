@@ -47,7 +47,7 @@ impl<'a> GenerateCtx<'a> {
         for ty in &crate_data.type_decls {
             let long_name = repr_name(&ty.item_meta.name);
             if long_name.starts_with("charon_lib") {
-                let short_name = ty.item_meta.name.short_str().clone();
+                let short_name = ty.item_meta.name.short_str().unwrap().to_string();
                 name_to_type.insert(short_name, ty);
             }
             name_to_type.insert(long_name, ty);
@@ -111,7 +111,7 @@ impl GenerateCodeFor {
             let tys = names
                 .iter()
                 .map(|&id| &ctx.crate_data[id])
-                .sorted_by_key(|tdecl| (tdecl.item_meta.name.short_str(), tdecl.def_id))
+                .sorted_by_key(|tdecl| (tdecl.item_meta.name.short_str().unwrap(), tdecl.def_id))
                 .collect::<Vec<_>>();
             ctx.current_ids = names.iter().copied().collect();
             let generated = match kind {
@@ -149,6 +149,8 @@ fn main() -> Result<()> {
         cmd.arg(&charon_llbc);
         cmd.arg("--");
         cmd.arg("--lib");
+        cmd.arg("--features");
+        cmd.arg("charon_on_charon");
         let output = cmd.output()?;
 
         if !output.status.success() {

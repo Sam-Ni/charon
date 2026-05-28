@@ -41,7 +41,7 @@ generate_index_type!(TraitImplId, "TraitImpl");
     Drive,
     DriveMut,
 )]
-#[charon::variants_prefix("Id")]
+#[cfg_attr(feature = "charon_on_charon", charon::variants_prefix("Id"))]
 #[serde_state(stateless)]
 pub enum ItemId {
     Type(TypeDeclId),
@@ -71,7 +71,7 @@ pub enum ItemId {
     Drive,
     DriveMut,
 )]
-#[charon::variants_prefix("AssocId")]
+#[cfg_attr(feature = "charon_on_charon", charon::variants_prefix("AssocId"))]
 #[serde_state(stateless)]
 pub enum AssocItemId {
     Type(AssocTypeId),
@@ -163,7 +163,7 @@ pub enum ItemRefMut<'ctx> {
 #[derive(
     Debug, Clone, VariantIndexArity, VariantName, EnumAsGetters, EnumIsA, Serialize, Deserialize,
 )]
-#[charon::variants_suffix("Group")]
+#[cfg_attr(feature = "charon_on_charon", charon::variants_suffix("Group"))]
 pub enum GDeclarationGroup<Id> {
     /// A non-recursive declaration
     NonRec(Id),
@@ -175,7 +175,7 @@ pub enum GDeclarationGroup<Id> {
 #[derive(
     Debug, Clone, VariantIndexArity, VariantName, EnumAsGetters, EnumIsA, Serialize, Deserialize,
 )]
-#[charon::variants_suffix("Group")]
+#[cfg_attr(feature = "charon_on_charon", charon::variants_suffix("Group"))]
 pub enum DeclarationGroup {
     /// A type declaration group
     Type(GDeclarationGroup<TypeDeclId>),
@@ -268,8 +268,10 @@ pub struct TranslatedCrate {
 }
 
 impl TranslatedCrate {
-    pub fn item_name(&self, id: impl Into<ItemId>) -> Option<&Name> {
-        self.item_names.get(&id.into())
+    pub fn item_name(&self, id: impl Into<ItemId>) -> &Name {
+        // `unwrap` is ok because we ensure to translate the item name as soon as we create a new
+        // item id.
+        self.item_names.get(&id.into()).unwrap()
     }
     pub fn assoc_item_name(
         &self,
@@ -284,9 +286,11 @@ impl TranslatedCrate {
         }
     }
 
-    pub fn item_short_name(&self, id: impl Into<ItemId>) -> Option<&Name> {
+    pub fn item_short_name(&self, id: impl Into<ItemId>) -> &Name {
         let id = id.into();
-        self.short_names.get(&id).or_else(|| self.item_name(id))
+        self.short_names
+            .get(&id)
+            .unwrap_or_else(|| self.item_name(id))
     }
 
     pub fn get_item(&self, trans_id: impl Into<ItemId>) -> Option<ItemRef<'_>> {

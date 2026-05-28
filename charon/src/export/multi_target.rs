@@ -125,6 +125,10 @@ impl CrateMerger {
                 fn enter_trait_impl_id(&mut self, id: &mut TraitImplId) {
                     *id += self.trait_impl_offset;
                 }
+                fn visit_abort_kind(&mut self, _x: &mut AbortKind) -> ControlFlow<Self::Break> {
+                    // Don't modify the name found there
+                    ControlFlow::Continue(())
+                }
                 fn enter_name(&mut self, name: &mut Name) {
                     name.name.push(PathElem::Target(self.target.clone()));
                 }
@@ -360,12 +364,12 @@ impl<'a> ItemDeduplicator<'a> {
         this.apply_merge_decisions(decisions);
     }
 
-    /// Group items by (base_name, item_kind), keeping only groups that have items in all targets.
+    /// Group items by (base_name, item_kind). Each group contains the versions of that item
+    /// across all targets where it exists.
     fn discover_groups(
         krate: &TranslatedCrate,
         _errors: &mut ErrorCtx,
     ) -> IndexVec<TargetGroupId, TargetGroup> {
-        let num_targets = krate.target_information.len();
         let mut groups_map: SeqHashMap<
             (Name, std::mem::Discriminant<ItemId>),
             SeqHashMap<TargetTriple, ItemId>,
@@ -388,7 +392,7 @@ impl<'a> ItemDeduplicator<'a> {
             let prev_len = groups_map.len();
             let remap: HashMap<ItemId, ItemId> = groups_map
                 .values()
-                .filter(|ids| ids.len() == num_targets)
+                .filter(|ids| !ids.is_empty())
                 .cloned()
                 .map(|ids| TargetGroup { ids })
                 .flat_map(|g| g.into_remap_entries())
@@ -408,14 +412,14 @@ impl<'a> ItemDeduplicator<'a> {
                     }
                 }
             }
-            groups_map.retain(|_, v| v.len() == num_targets);
+            // Remove empty groups (from collisions) and check for convergence.
+            groups_map.retain(|_, v| !v.is_empty());
             if prev_len == groups_map.len() {
                 break;
             }
         }
         let groups: IndexVec<TargetGroupId, TargetGroup> = groups_map
             .into_values()
-            .filter(|per_target| per_target.len() == num_targets)
             .map(|ids| TargetGroup { ids })
             .collect();
         groups
@@ -571,7 +575,10 @@ fn normalize_item(
         .retain(|elem| !matches!(elem, PathElem::Target(_)));
 
     strip_unstable_attributes(&mut item);
-    // Don't compare source text: span is enough, and it can have OS-specific line endings.
+    // Ignore source text and spans: if the items are otherwise identical, it's ok to just pick one
+    // of the identical instances wrt spans/source.
+    item.as_mut()
+        .dyn_visit_mut(|span: &mut Span| *span = Span::dummy());
     item.as_mut().item_meta().source_text = None;
     if let ItemByVal::Type(ty_decl) = &mut item {
         // Layouts are allowed to differ per-target.

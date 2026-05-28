@@ -104,12 +104,9 @@ impl<C: AstFormatter> FmtWithCtx<C> for BuiltinAssertKind {
 
 impl<C: AstFormatter> FmtWithCtx<C> for ItemId {
     fn fmt_with_ctx(&self, ctx: &C, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match ctx
-            .get_crate()
-            .and_then(|translated| translated.item_short_name(*self))
-        {
+        match ctx.get_crate() {
             None => write!(f, "{self}"),
-            Some(name) => name.fmt_with_ctx(ctx, f),
+            Some(translated) => translated.item_short_name(*self).fmt_with_ctx(ctx, f),
         }
     }
 }
@@ -1646,14 +1643,14 @@ impl<C: AstFormatter> FmtWithCtx<C> for ullbc::Statement {
                 place.with_ctx(ctx),
                 variant_id
             ),
-            StatementKind::CopyNonOverlapping(box CopyNonOverlapping { src, dst, count }) => {
+            StatementKind::CopyNonOverlapping(cno) => {
                 write!(
                     f,
                     "{}copy_nonoverlapping({}, {}, {})",
                     tab,
-                    src.with_ctx(ctx),
-                    dst.with_ctx(ctx),
-                    count.with_ctx(ctx),
+                    cno.src.with_ctx(ctx),
+                    cno.dst.with_ctx(ctx),
+                    cno.count.with_ctx(ctx),
                 )
             }
             StatementKind::StorageLive(var_id) => {
@@ -1693,13 +1690,13 @@ impl<C: AstFormatter> FmtWithCtx<C> for llbc::Statement {
             StatementKind::SetDiscriminant(place, variant_id) => {
                 write!(f, "@discriminant({}) = {}", place.with_ctx(ctx), variant_id)
             }
-            StatementKind::CopyNonOverlapping(box CopyNonOverlapping { src, dst, count }) => {
+            StatementKind::CopyNonOverlapping(cno) => {
                 write!(
                     f,
                     "copy_nonoverlapping({}, {}, {})",
-                    src.with_ctx(ctx),
-                    dst.with_ctx(ctx),
-                    count.with_ctx(ctx),
+                    cno.src.with_ctx(ctx),
+                    cno.dst.with_ctx(ctx),
+                    cno.count.with_ctx(ctx),
                 )
             }
             StatementKind::StorageLive(var_id) => {

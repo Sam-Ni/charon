@@ -25,7 +25,7 @@ pub use vars::*;
     Drive,
     DriveMut,
 )]
-#[charon::variants_prefix("R")]
+#[cfg_attr(feature = "charon_on_charon", charon::variants_prefix("R"))]
 pub enum Region {
     /// Region variable. See `DeBruijnVar` for details.
     Var(RegionDbVar),
@@ -106,7 +106,7 @@ pub enum TraitRefKind {
 
     /// The implicit `Self: Trait` clause. Present inside trait declarations, including trait
     /// method declarations. Not present in trait implementations as we can use `TraitImpl` intead.
-    #[charon::rename("Self")]
+    #[cfg_attr(feature = "charon_on_charon", charon::rename("Self"))]
     SelfId,
 
     /// A trait implementation that is computed by the compiler, such as for built-in trait
@@ -132,7 +132,7 @@ pub enum TraitRefKind {
     Dyn,
 
     /// For error reporting.
-    #[charon::rename("UnknownTrait")]
+    #[cfg_attr(feature = "charon_on_charon", charon::rename("UnknownTrait"))]
     #[drive(skip)]
     Unknown(String),
 }
@@ -140,7 +140,7 @@ pub enum TraitRefKind {
 /// Describes a built-in impl. Mostly lists the implemented trait, sometimes with more details
 /// about the contents of the implementation.
 #[derive(Debug, Clone, SerializeState, DeserializeState, PartialEq, Eq, Hash, Drive, DriveMut)]
-#[charon::variants_prefix("Builtin")]
+#[cfg_attr(feature = "charon_on_charon", charon::variants_prefix("Builtin"))]
 pub enum BuiltinImplData {
     // Marker traits (without methods).
     Sized,
@@ -242,17 +242,17 @@ pub type BoxedArgs = Box<GenericArgs>;
 /// issues in the derived ocaml visitors.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, SerializeState, DeserializeState, Drive, DriveMut)]
 pub struct RegionBinder<T> {
-    #[charon::rename("binder_regions")]
+    #[cfg_attr(feature = "charon_on_charon", charon::rename("binder_regions"))]
     #[serde_state(stateless)]
     pub regions: IndexVec<RegionId, RegionParam>,
     /// Named this way to highlight accesses to the inner value that might be handling parameters
     /// incorrectly. Prefer using helper methods.
-    #[charon::rename("binder_value")]
+    #[cfg_attr(feature = "charon_on_charon", charon::rename("binder_value"))]
     pub skip_binder: T,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, SerializeState, DeserializeState, Drive, DriveMut)]
-#[charon::variants_prefix("BK")]
+#[cfg_attr(feature = "charon_on_charon", charon::variants_prefix("BK"))]
 pub enum BinderKind {
     /// The parameters of a generic associated type.
     TraitType(TraitDeclId, AssocTypeId),
@@ -272,14 +272,14 @@ pub enum BinderKind {
 /// now), trait methods, GATs (TODO).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, SerializeState, DeserializeState, Drive, DriveMut)]
 pub struct Binder<T> {
-    #[charon::rename("binder_params")]
+    #[cfg_attr(feature = "charon_on_charon", charon::rename("binder_params"))]
     pub params: GenericParams,
     /// Named this way to highlight accesses to the inner value that might be handling parameters
     /// incorrectly. Prefer using helper methods.
-    #[charon::rename("binder_value")]
+    #[cfg_attr(feature = "charon_on_charon", charon::rename("binder_value"))]
     pub skip_binder: T,
     /// The kind of binder this is.
-    #[charon::opaque]
+    #[cfg_attr(feature = "charon_on_charon", charon::opaque)]
     #[drive(skip)]
     pub kind: BinderKind,
 }
@@ -347,7 +347,7 @@ pub enum PredicateOrigin {
     // ```
     TraitItem(AssocTypeId),
     /// Clauses that are part of a `dyn Trait` type.
-    #[charon::rename("OriginDyn")]
+    #[cfg_attr(feature = "charon_on_charon", charon::rename("OriginDyn"))]
     Dyn,
 }
 
@@ -401,7 +401,6 @@ pub enum Discriminator {
 /// some of the layout parts are not available.
 #[derive(
     Debug,
-    Default,
     Clone,
     PartialEq,
     Eq,
@@ -431,6 +430,10 @@ pub struct Layout {
     /// Map from `VariantId` to the corresponding field layouts. Structs are modeled as having
     /// exactly one variant, unions as having no variant.
     pub variant_layouts: IndexVec<VariantId, VariantLayout>,
+    /// The representation options of this type declaration as annotated by the user.
+    #[drive(skip)]
+    #[serde_state(stateless)]
+    pub repr: ReprOptions,
 }
 
 /// The metadata stored in a pointer. That's the information stored in pointers alongside
@@ -440,7 +443,7 @@ pub struct Layout {
 #[serde_state(default_state = ())]
 pub enum PtrMetadata {
     /// Types that need no metadata, namely `T: Sized` types.
-    #[charon::rename("NoMetadata")]
+    #[cfg_attr(feature = "charon_on_charon", charon::rename("NoMetadata"))]
     None,
     /// Metadata for `[T]` and `str`, and user-defined types
     /// that directly or indirectly contain one of the two.
@@ -458,9 +461,10 @@ pub enum PtrMetadata {
 
 /// Describes which layout algorithm is used for representing the corresponding type.
 /// Depends on the `#[repr(...)]` used.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ReprAlgorithm {
     /// The default layout algorithm. Used without an explicit `ŗepr` or for `repr(Rust)`.
+    #[default]
     Rust,
     /// The C layout algorithm as enforced by `repr(C)`.
     C,
@@ -480,7 +484,7 @@ pub enum AlignmentModifier {
 /// or the compiler internal `#[repr(linear)]`. Similarly, enum discriminant representations
 /// are encoded in [`Variant::discriminant`] and [`Discriminator`] instead.
 /// This only stores whether the discriminant type was derived from an explicit annotation.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReprOptions {
     pub repr_algo: ReprAlgorithm,
     pub align_modif: Option<AlignmentModifier>,
@@ -518,11 +522,6 @@ pub struct TypeDecl {
     pub layout: SeqHashMap<TargetTriple, Layout>,
     /// The metadata associated with a pointer to the type.
     pub ptr_metadata: PtrMetadata,
-    /// The representation options of this type declaration as annotated by the user.
-    /// Is `None` for foreign type declarations.
-    #[drive(skip)]
-    #[serde_state(stateless)]
-    pub repr: Option<ReprOptions>,
 }
 
 generate_index_type!(VariantId, "Variant");
@@ -553,7 +552,7 @@ pub enum TypeDeclKind {
     Alias(Ty),
     /// Used if an error happened during the extraction, and we don't panic
     /// on error.
-    #[charon::rename("TDeclError")]
+    #[cfg_attr(feature = "charon_on_charon", charon::rename("TDeclError"))]
     #[drive(skip)]
     Error(String),
 }
@@ -565,7 +564,7 @@ pub struct Variant {
     pub span: Span,
     #[drive(skip)]
     pub attr_info: AttrInfo,
-    #[charon::rename("variant_name")]
+    #[cfg_attr(feature = "charon_on_charon", charon::rename("variant_name"))]
     #[drive(skip)]
     pub name: String,
     #[serde_state(stateful)]
@@ -582,10 +581,10 @@ pub struct Field {
     pub span: Span,
     #[drive(skip)]
     pub attr_info: AttrInfo,
-    #[charon::rename("field_name")]
+    #[cfg_attr(feature = "charon_on_charon", charon::rename("field_name"))]
     #[drive(skip)]
     pub name: Option<String>,
-    #[charon::rename("field_ty")]
+    #[cfg_attr(feature = "charon_on_charon", charon::rename("field_ty"))]
     #[serde_state(stateful)]
     pub ty: Ty,
 }
@@ -656,7 +655,7 @@ pub enum UIntTy {
     Ord,
     PartialOrd,
 )]
-#[charon::rename("IntegerType")]
+#[cfg_attr(feature = "charon_on_charon", charon::rename("IntegerType"))]
 pub enum IntegerTy {
     Signed(IntTy),
     Unsigned(UIntTy),
@@ -678,7 +677,7 @@ pub enum IntegerTy {
     Ord,
     PartialOrd,
 )]
-#[charon::rename("FloatType")]
+#[cfg_attr(feature = "charon_on_charon", charon::rename("FloatType"))]
 pub enum FloatTy {
     F16,
     F32,
@@ -704,7 +703,7 @@ pub enum FloatTy {
     Ord,
     PartialOrd,
 )]
-#[charon::variants_prefix("R")]
+#[cfg_attr(feature = "charon_on_charon", charon::variants_prefix("R"))]
 #[serde_state(stateless)]
 pub enum RefKind {
     Mut,
@@ -716,7 +715,7 @@ pub enum RefKind {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, EnumIsA,
 )]
-#[charon::variants_prefix("Lt")]
+#[cfg_attr(feature = "charon_on_charon", charon::variants_prefix("Lt"))]
 pub enum LifetimeMutability {
     /// A lifetime that is used for a mutable reference.
     Mutable,
@@ -746,13 +745,13 @@ pub enum LifetimeMutability {
     Ord,
     PartialOrd,
 )]
-#[charon::variants_prefix("T")]
+#[cfg_attr(feature = "charon_on_charon", charon::variants_prefix("T"))]
 pub enum TypeId {
     /// A "regular" ADT type.
     ///
     /// Includes transparent ADTs and opaque ADTs (local ADTs marked as opaque,
     /// and external ADTs).
-    #[charon::rename("TAdtId")]
+    #[cfg_attr(feature = "charon_on_charon", charon::rename("TAdtId"))]
     Adt(TypeDeclId),
     Tuple,
     /// Built-in type. Either a primitive type like array or slice, or a
@@ -762,7 +761,7 @@ pub enum TypeId {
     /// The Array and Slice types were initially modelled as primitive in
     /// the [Ty] type. We decided to move them to built-in types as it allows
     /// for more uniform treatment throughout the codebase.
-    #[charon::rename("TBuiltin")]
+    #[cfg_attr(feature = "charon_on_charon", charon::rename("TBuiltin"))]
     #[serde_state(stateless)]
     Builtin(BuiltinTy),
 }
@@ -795,8 +794,8 @@ pub struct TypeDeclRef {
     Ord,
     PartialOrd,
 )]
-#[charon::rename("LiteralType")]
-#[charon::variants_prefix("T")]
+#[cfg_attr(feature = "charon_on_charon", charon::rename("LiteralType"))]
+#[cfg_attr(feature = "charon_on_charon", charon::variants_prefix("T"))]
 #[serde_state(stateless)]
 pub enum LiteralTy {
     Int(IntTy),
@@ -830,7 +829,7 @@ pub struct Ty(pub HashConsed<TyKind>);
     Drive,
     DriveMut,
 )]
-#[charon::variants_prefix("T")]
+#[cfg_attr(feature = "charon_on_charon", charon::variants_prefix("T"))]
 pub enum TyKind {
     /// An ADT.
     /// Note that here ADTs are very general. They can be:
@@ -844,7 +843,7 @@ pub enum TyKind {
     /// Note: this is incorrectly named: this can refer to any valid `TypeDecl` including extern
     /// types.
     Adt(TypeDeclRef),
-    #[charon::rename("TVar")]
+    #[cfg_attr(feature = "charon_on_charon", charon::rename("TVar"))]
     TypeVar(TypeDbVar),
     Literal(LiteralTy),
     /// The never type, for computations which don't return. It is sometimes
@@ -932,7 +931,7 @@ pub enum TyKind {
     Ord,
     PartialOrd,
 )]
-#[charon::variants_prefix("T")]
+#[cfg_attr(feature = "charon_on_charon", charon::variants_prefix("T"))]
 pub enum BuiltinTy {
     /// Boxes are de facto a primitive type.
     Box,

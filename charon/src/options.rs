@@ -28,7 +28,7 @@ pub const CHARON_ARGS: &str = "CHARON_ARGS";
 // `Deserialize` options).
 #[derive(Debug, Default, Clone, clap::Args, PartialEq, Eq, Serialize, Deserialize)]
 #[clap(name = "Charon")]
-#[charon::rename("cli_options")]
+#[cfg_attr(feature = "charon_on_charon", charon::rename("cli_options"))]
 pub struct CliOpts {
     /// Extract the unstructured LLBC (i.e., don't reconstruct the control-flow)
     #[clap(long)]
@@ -138,7 +138,7 @@ pub struct CliOpts {
             items in it transparent (we will translate them if we encounter them.)
     "))]
     #[serde(default)]
-    #[charon::rename("included")]
+    #[cfg_attr(feature = "charon_on_charon", charon::rename("included"))]
     pub include: Vec<String>,
     /// Blacklist of items to keep opaque. Works just like `--include`, see the doc there.
     #[clap(long)]
@@ -164,13 +164,13 @@ pub struct CliOpts {
     #[clap(long, alias = "remove-associated-types")]
     #[serde(default)]
     pub lift_associated_types: Vec<String>,
-    /// Whether to hide various marker traits such as `Sized`, `Sync`, `Send` and `Destruct`
+    /// Whether to hide various marker traits such as `Sized`, `Sync`, and `Send`
     /// anywhere they show up. This can considerably speed up translation.
     #[clap(long)]
     #[serde(default)]
     pub hide_marker_traits: bool,
     /// Remove trait clauses from type declarations. Must be combined with
-    /// `--remove-associated-types` for type declarations that use trait associated types in their
+    /// `--lift-associated-types` for type declarations that use trait associated types in their
     /// fields, otherwise this will result in errors.
     #[clap(long)]
     #[serde(default)]
@@ -344,7 +344,7 @@ pub enum MonomorphizeMut {
 pub enum SerializationFormatArg {
     Json,
     Postcard,
-    #[charon::rename("AllFormats")]
+    #[cfg_attr(feature = "charon_on_charon", charon::rename("AllFormats"))]
     All,
 }
 
@@ -423,6 +423,7 @@ impl CliOpts {
                     self.hide_allocator = true;
                     self.remove_unused_self_clauses = true;
                     self.remove_adt_clauses = true;
+                    self.monomorphize_mut = Some(MonomorphizeMut::ExceptTypes);
                     self.unbind_item_vars = true;
                     // Hide drop impls because they often involve nested borrows. which aeneas
                     // doesn't handle yet.
@@ -478,7 +479,7 @@ impl CliOpts {
 
         if self.remove_adt_clauses && self.lift_associated_types.is_empty() {
             anyhow::bail!(
-                "`--remove-adt-clauses` should be used with `--remove-associated-types='*'` \
+                "`--remove-adt-clauses` should be used with `--lift-associated-types='*'` \
                 to avoid missing clause errors",
             )
         }
@@ -682,10 +683,6 @@ impl TranslateOptions {
             ])
             .into_iter()
             .flatten()
-            .chain(
-                (options.hide_marker_traits && !options.precise_drops)
-                    .then_some("core::marker::Destruct"),
-            )
             .chain(options.hide_allocator.then_some("core::alloc::Allocator"))
             .filter_map(|s| parse_pattern(s).ok())
             .collect_vec();

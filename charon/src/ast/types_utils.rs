@@ -858,8 +858,6 @@ impl std::ops::Deref for Ty {
         self.kind()
     }
 }
-/// For deref patterns.
-unsafe impl std::ops::DerefPure for Ty {}
 
 impl TypeDeclRef {
     pub fn new(id: TypeId, generics: GenericArgs) -> Self {
@@ -876,7 +874,7 @@ impl TraitDeclRef {
             Some(ty) => Some(ty),
             // TODO(mono): A monomorphized trait takes no arguments.
             None => {
-                let name = krate.item_name(self.id)?;
+                let name = krate.item_name(self.id);
                 let args = name.name.last()?.as_monomorphized()?;
                 args.types.iter().next()
             }
@@ -1428,12 +1426,6 @@ impl<'a, T> Substituted<'a, T> {
 }
 
 impl TypeDecl {
-    pub fn is_c_repr(&self) -> bool {
-        self.repr
-            .as_ref()
-            .is_some_and(|repr| repr.repr_algo == ReprAlgorithm::C)
-    }
-
     pub fn get_field(&self, variant: Option<VariantId>, field: FieldId) -> Option<&Field> {
         let fields = match &self.kind {
             TypeDeclKind::Struct(fields) | TypeDeclKind::Union(fields) => fields,
@@ -1508,6 +1500,10 @@ impl Layout {
         } else {
             false
         }
+    }
+
+    pub fn is_c_repr(&self) -> bool {
+        self.repr.repr_algo == ReprAlgorithm::C
     }
 }
 

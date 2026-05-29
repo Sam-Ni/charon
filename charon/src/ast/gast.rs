@@ -247,6 +247,8 @@ pub struct FunDeclRef {
 pub enum GlobalKind {
     /// A static.
     Static,
+    /// A thread-local static.
+    ThreadLocal,
     /// A const with a name (either top-level or an associated const in a trait).
     NamedConst,
     /// A const without a name:
@@ -494,6 +496,9 @@ pub enum BuiltinAssertKind {
     MisalignedPointerDereference { required: Operand, found: Operand },
     NullPointerDereference,
     InvalidEnumConstruction(Operand),
+    ResumedAfterReturn,
+    ResumedAfterPanic,
+    ResumedAfterDrop,
 }
 
 /// (U)LLBC is a language with side-effects: a statement may abort in a way that isn't tracked by

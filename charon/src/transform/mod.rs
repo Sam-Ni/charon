@@ -31,22 +31,22 @@ pub mod normalize {
 /// Passes that undo some lowering done by rustc to recover an operation closer to what the user
 /// wrote.
 pub mod resugar {
-    pub mod inline_local_panic_functions;
     pub mod move_asserts_to_statements;
     pub mod reconstruct_asserts;
-    pub mod reconstruct_boxes;
     pub mod reconstruct_fallible_operations;
     pub mod reconstruct_intrinsics;
     pub mod reconstruct_matches;
+    pub mod reconstruct_vec_boxes;
 }
 
 /// Passes that make the output simpler/easier to consume.
 pub mod simplify_output {
+    pub mod anon_const_to_call;
     pub mod filter_trivial_drops;
     pub mod hide_allocator_param;
     pub mod index_intermediate_assigns;
     pub mod index_to_function_calls;
-    pub mod inline_anon_consts;
+    pub mod inline_selected_functions;
     pub mod lift_associated_item_clauses;
     pub mod ops_to_function_calls;
     pub mod remove_adt_clauses;
@@ -126,10 +126,10 @@ pub fn run_transformation_passes(options: &CliOpts, ctx: &mut TransformCtx) {
         // Transform dyn trait method calls to vtable function pointer calls.
         // This should be early to handle the calls before other transformations.
         CowBox::Borrowed(&normalize::transform_dyn_trait_calls::Transform),
-        // Inline promoted and inline consts into their parent bodies.
-        simplify_output::inline_anon_consts::Transform::new(ctx),
-        // `panic!()` expands to a new function definition each time. This pass cleans those up.
-        resugar::inline_local_panic_functions::Transform::new(ctx),
+        // Replace promoted and inline consts with calls to their initializers.
+        simplify_output::anon_const_to_call::Transform::new(ctx),
+        // Inline promoted and inline consts, as well as dummy auto-generated panic functions.
+        simplify_output::inline_selected_functions::Transform::new(ctx),
         // Remove drop statements that are noops.
         CowBox::Borrowed(&simplify_output::filter_trivial_drops::Transform),
         // Inline all asserts that correspond to dynamic checks into statements.
@@ -149,14 +149,14 @@ pub fn run_transformation_passes(options: &CliOpts, ctx: &mut TransformCtx) {
         // **WARNING**: this pass relies on a precise structure of the MIR statements. Because of this,
         // it must happen before passes that insert statements like [simplify_constants].
         CowBox::Borrowed(&resugar::reconstruct_fallible_operations::Transform),
+        // Reconstruct `vec![x]` lowering to avoid unsafe operations.
+        // **WARNING**: this pass relies on a precise structure of the MIR statements. Because of
+        // this, it must happen before passes that insert statements like [simplify_constants].
+        // This must also happen after `inline_selected_functions`, and `merge_goto_chains`.
+        resugar::reconstruct_vec_boxes::Transform::new(ctx),
         // Recognize calls to the `offset_of` intrinsics and replace them with the
         // corresponding `NullOp`.
         CowBox::Borrowed(&resugar::reconstruct_intrinsics::Transform),
-        // Reconstruct the special `Box::new` operations inserted e.g. in the `vec![]` macro.
-        // **WARNING**: this pass relies on a precise structure of the MIR statements. Because of this,
-        // it must happen before passes that insert statements like [simplify_constants].
-        // **WARNING**: this pass works across calls, hence must happen after `merge_goto_chains`,
-        CowBox::Borrowed(&resugar::reconstruct_boxes::Transform),
         // Reconstruct the asserts
         CowBox::Borrowed(&resugar::reconstruct_asserts::Transform),
         // Desugar the constants to other values/operands as much as possible.

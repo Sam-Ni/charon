@@ -252,7 +252,7 @@ checksum = "9555578bc9e57714c812a1f84e4fc5b4d21fcb063490c624de019f7464c91268"
 
 [[package]]
 name = "charon"
-version = "0.1.197"
+version = "0.1.202"
 dependencies = [
  "annotate-snippets",
  "anstream",
@@ -287,6 +287,7 @@ dependencies = [
  "postcard",
  "regex",
  "reqwest",
+ "rustc-hash",
  "rustc_trait_elaboration",
  "rustc_version",
  "serde",
@@ -1980,10 +1981,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56f7d92ca342cea22a06f2121d944b4fd82af56988c270852495420f961d4ace"
 
 [[package]]
+name = "rustc-hash"
+version = "2.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94300abf3f1ae2e2b8ffb7b58043de3d399c73fa6f4b73826402a5c457614dbe"
+
+[[package]]
 name = "rustc_trait_elaboration"
 version = "0.1.0"
 dependencies = [
  "itertools",
+ "rustc-hash",
  "tracing",
 ]
 
@@ -2181,7 +2189,7 @@ dependencies = [
 [[package]]
 name = "serde_state"
 version = "1.0.0"
-source = "git+https://github.com/Nadrieril/serde_state?branch=main#5a7882d9e88af931705d03b3205e22b0bc3e5bf5"
+source = "git+https://github.com/Nadrieril/serde_state?branch=main#9bffbc1b28fd93533bbd3ca835385f29cb51888f"
 dependencies = [
  "serde",
  "serde_state_derive",
@@ -2190,7 +2198,7 @@ dependencies = [
 [[package]]
 name = "serde_state_derive"
 version = "1.0.0"
-source = "git+https://github.com/Nadrieril/serde_state?branch=main#5a7882d9e88af931705d03b3205e22b0bc3e5bf5"
+source = "git+https://github.com/Nadrieril/serde_state?branch=main#9bffbc1b28fd93533bbd3ca835385f29cb51888f"
 dependencies = [
  "proc-macro2 1.0.96",
  "quote 1.0.40",

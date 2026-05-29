@@ -265,6 +265,9 @@ and builtin_assert_kind_of_json (ctx : of_json_ctx) (js : json) :
           operand_of_json ctx invalid_enum_construction
         in
         Ok (InvalidEnumConstruction invalid_enum_construction)
+    | `String "ResumedAfterReturn" -> Ok ResumedAfterReturn
+    | `String "ResumedAfterPanic" -> Ok ResumedAfterPanic
+    | `String "ResumedAfterDrop" -> Ok ResumedAfterDrop
     | _ -> Error "")
 
 and builtin_fun_id_of_json (ctx : of_json_ctx) (js : json) :
@@ -1137,10 +1140,6 @@ and rvalue_of_json (ctx : of_json_ctx) (js : json) : (rvalue, string) result =
         let* x_1 = ty_of_json ctx x_1 in
         let* x_2 = box_of_json constant_expr_of_json ctx x_2 in
         Ok (Repeat (x_0, x_1, x_2))
-    | `Assoc [ ("ShallowInitBox", `List [ x_0; x_1 ]) ] ->
-        let* x_0 = operand_of_json ctx x_0 in
-        let* x_1 = ty_of_json ctx x_1 in
-        Ok (ShallowInitBox (x_0, x_1))
     | _ -> Error "")
 
 and scalar_value_of_json (ctx : of_json_ctx) (js : json) :
@@ -1662,6 +1661,17 @@ module Ullbc = struct
           let* target = block_id_of_json ctx target in
           let* on_unwind = block_id_of_json ctx on_unwind in
           Ok (TAssert (assert_, target, on_unwind))
+      | `Assoc
+          [
+            ( "InlineAsm",
+              `Assoc
+                [ ("asm", asm); ("targets", targets); ("on_unwind", on_unwind) ]
+            );
+          ] ->
+          let* asm = string_of_json ctx asm in
+          let* targets = list_of_json block_id_of_json ctx targets in
+          let* on_unwind = block_id_of_json ctx on_unwind in
+          Ok (InlineAsm (asm, targets, on_unwind))
       | `Assoc [ ("Abort", abort) ] ->
           let* abort = abort_kind_of_json ctx abort in
           Ok (Abort abort)
@@ -1753,6 +1763,11 @@ module Llbc = struct
           let* assert_ = assertion_of_json ctx assert_ in
           let* on_failure = abort_kind_of_json ctx on_failure in
           Ok (Assert (assert_, on_failure))
+      | `Assoc [ ("InlineAsm", `Assoc [ ("asm", asm); ("targets", targets) ]) ]
+        ->
+          let* asm = string_of_json ctx asm in
+          let* targets = list_of_json block_of_json ctx targets in
+          Ok (InlineAsm (asm, targets))
       | `Assoc [ ("Call", call) ] ->
           let* call = call_of_json ctx call in
           Ok (Call call)
@@ -2377,6 +2392,7 @@ and global_kind_of_json (ctx : of_json_ctx) (js : json) :
   combine_error_msgs js __FUNCTION__
     (match js with
     | `String "Static" -> Ok Static
+    | `String "ThreadLocal" -> Ok ThreadLocal
     | `String "NamedConst" -> Ok NamedConst
     | `String "AnonConst" -> Ok AnonConst
     | _ -> Error "")
@@ -2560,8 +2576,9 @@ and layout_of_json (ctx : of_json_ctx) (js : json) : (layout, string) result =
         in
         let* uninhabited = bool_of_json ctx uninhabited in
         let* variant_layouts =
-          index_vec_of_json variant_id_of_json variant_layout_of_json ctx
-            variant_layouts
+          index_vec_of_json variant_id_of_json
+            (option_of_json variant_layout_of_json)
+            ctx variant_layouts
         in
         let* repr = repr_options_of_json ctx repr in
         Ok

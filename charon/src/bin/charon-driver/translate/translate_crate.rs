@@ -25,6 +25,7 @@ use super::translate_ctx::*;
 use crate::hax;
 use crate::hax::SInto;
 use charon_lib::ast::*;
+use charon_lib::name_matcher::NamePattern;
 use charon_lib::options::{CliOpts, StartFrom, TranslateOptions};
 use charon_lib::transform::TransformCtx;
 use macros::VariantIndexArity;
@@ -206,6 +207,18 @@ impl RustcItem {
 }
 
 impl<'tcx> TranslateCtx<'tcx> {
+    /// Resolve a path to a list of matching `DefId`s.
+    pub fn resolve_path(
+        &self,
+        span: Span,
+        pat: &NamePattern,
+        strict: bool,
+    ) -> Result<Vec<rustc_span::def_id::DefId>, Error> {
+        super::resolve_path::def_path_def_ids(&self.hax_state, pat, strict).map_err(|err| {
+            register_error!(self, span, "failed to resolve item path `{pat}`: {err}")
+        })
+    }
+
     /// Returns the default translation kind for the given `DefId`. Returns `None` for items that
     /// we don't translate. Errors on unexpected items.
     pub fn base_kind_for_item(&mut self, def_id: &hax::DefId) -> Option<TransItemSourceKind> {
@@ -340,7 +353,7 @@ impl<'tcx> TranslateCtx<'tcx> {
         trait_def_id: &hax::DefId,
         trait_id: TraitDeclId,
     ) -> Result<(), Error> {
-        if self.translated.assoc_item_names.get(trait_id).is_some() {
+        if self.method_status.get(trait_id).is_some() {
             return Ok(());
         }
         let trait_def = self.poly_hax_def(trait_def_id)?;
@@ -383,7 +396,12 @@ impl<'tcx> TranslateCtx<'tcx> {
         trait_id: TraitDeclId,
         item_def_id: &hax::DefId,
     ) -> Result<AssocItemId, Error> {
-        if let Some(&item_id) = self.assoc_item_id_map.get(item_def_id) {
+        // The same assoc item `DefId` could belong to several `TraitDeclId`s because of
+        // monomorphization, so we only return the item id if we know this trait's data is
+        // initialized.
+        if let Some(&item_id) = self.assoc_item_id_map.get(item_def_id)
+            && self.method_status.get(trait_id).is_some()
+        {
             return Ok(item_id);
         }
 
@@ -404,6 +422,7 @@ impl<'tcx> TranslateCtx<'tcx> {
 
         if decl_def_id != item_def_id
             && let Some(&item_id) = self.assoc_item_id_map.get(decl_def_id)
+            && self.method_status.get(trait_id).is_some()
         {
             self.assoc_item_id_map.insert(item_def_id.clone(), item_id);
             return Ok(item_id);
@@ -815,7 +834,11 @@ pub fn translate<'tcx>(
     let translate_options = TranslateOptions::new(&mut error_ctx, cli_options);
 
     let traits_to_remove: HashSet<rustc_hir::def_id::DefId> = {
-        let hax_state = hax::state::State::new(tcx, hax::options::Options::default());
+        let hax_state = hax::state::State::new(
+            tcx,
+            hax::options::Options::default(),
+            hax::options::BoundsOptions::default(),
+        );
         translate_options
             .hide_traits
             .iter()
@@ -826,10 +849,10 @@ pub fn translate<'tcx>(
         tcx,
         hax::options::Options {
             inline_anon_consts: !translate_options.raw_consts,
-            bounds_options: hax::options::BoundsOptions {
-                add_destruct_bounds: translate_options.add_destruct_bounds,
-                remove_traits: traits_to_remove,
-            },
+        },
+        hax::options::BoundsOptions {
+            add_destruct_bounds: translate_options.add_destruct_bounds,
+            remove_traits: traits_to_remove,
         },
     );
 
@@ -868,19 +891,10 @@ pub fn translate<'tcx>(
     for start_from in ctx.options.start_from.clone() {
         match start_from {
             StartFrom::Pattern { pattern, strict } => {
-                match super::resolve_path::def_path_def_ids(&ctx.hax_state, &pattern, strict) {
-                    Ok(resolved) => {
-                        for def_id in resolved {
-                            let def_id: hax::DefId = def_id.sinto(&ctx.hax_state);
-                            ctx.enqueue_module_item(&def_id);
-                        }
-                    }
-                    Err(err) => {
-                        register_error!(
-                            ctx,
-                            Span::dummy(),
-                            "when processing starting pattern `{pattern}`: {err}"
-                        );
+                if let Ok(def_ids) = ctx.resolve_path(Span::dummy(), &pattern, strict) {
+                    for def_id in def_ids {
+                        let def_id: hax::DefId = def_id.sinto(&ctx.hax_state);
+                        ctx.enqueue_module_item(&def_id);
                     }
                 }
             }

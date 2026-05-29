@@ -758,6 +758,10 @@ impl Ty {
         }
     }
 
+    pub fn as_adt_id(&self) -> Option<TypeDeclId> {
+        self.kind().as_adt().and_then(|a| a.id.as_adt().cloned())
+    }
+
     pub fn get_ptr_metadata(&self, translated: &TranslatedCrate) -> PtrMetadata {
         let ty_decls = &translated.type_decls;
         match self.kind() {
@@ -1495,11 +1499,9 @@ impl Discriminator {
 
 impl Layout {
     pub fn is_variant_uninhabited(&self, variant_id: VariantId) -> bool {
-        if let Some(v) = self.variant_layouts.get(variant_id) {
-            v.uninhabited
-        } else {
-            false
-        }
+        self.variant_layouts[variant_id]
+            .as_ref()
+            .is_none_or(|v| v.uninhabited)
     }
 
     pub fn is_c_repr(&self) -> bool {

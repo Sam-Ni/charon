@@ -98,6 +98,9 @@ impl<C: AstFormatter> FmtWithCtx<C> for BuiltinAssertKind {
             BuiltinAssertKind::InvalidEnumConstruction(..) => {
                 write!(f, "invalid_enum_construction")
             }
+            BuiltinAssertKind::ResumedAfterReturn => write!(f, "resumed_after_return"),
+            BuiltinAssertKind::ResumedAfterDrop => write!(f, "resumed_after_drop"),
+            BuiltinAssertKind::ResumedAfterPanic => write!(f, "resumed_after_panic"),
         }
     }
 }
@@ -900,6 +903,7 @@ where
     fn fmt_with_ctx(&self, ctx: &C, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let keyword = match self.global_kind {
             GlobalKind::Static => "static",
+            GlobalKind::ThreadLocal => "thread_local",
             GlobalKind::AnonConst | GlobalKind::NamedConst => "const",
         };
         self.item_meta
@@ -1605,14 +1609,6 @@ impl<C: AstFormatter> FmtWithCtx<C> for Rvalue {
             Rvalue::Repeat(op, _ty, cg) => {
                 write!(f, "[{}; {}]", op.with_ctx(ctx), cg.with_ctx(ctx))
             }
-            Rvalue::ShallowInitBox(op, ty) => {
-                write!(
-                    f,
-                    "shallow_init_box::<{}>({})",
-                    ty.with_ctx(ctx),
-                    op.with_ctx(ctx)
-                )
-            }
         }
     }
 }
@@ -1722,6 +1718,30 @@ impl<C: AstFormatter> FmtWithCtx<C> for llbc::Statement {
                     assert.with_ctx(ctx),
                     on_failure.with_ctx(ctx)
                 )
+            }
+            StatementKind::InlineAsm { asm, targets } => {
+                write!(f, "asm!({asm:?})")?;
+                if let [target] = targets.as_slice() {
+                    for statement in &target.statements {
+                        write!(f, "\n{}", statement.with_ctx(ctx))?;
+                    }
+                    return Ok(());
+                }
+                if !targets.is_empty() {
+                    write!(f, " {{")?;
+                    let ctx1 = &ctx.increase_indent();
+                    let tab1 = ctx1.indent();
+                    let ctx2 = &ctx1.increase_indent();
+                    for (i, target) in targets.iter().enumerate() {
+                        write!(
+                            f,
+                            "\n{tab1}target {i} => {{\n{}{tab1}}}",
+                            target.with_ctx(ctx2)
+                        )?;
+                    }
+                    write!(f, "\n{tab}}}")?;
+                }
+                Ok(())
             }
             StatementKind::Call(call) => {
                 write!(f, "{}", call.with_ctx(ctx))
@@ -1871,6 +1891,19 @@ impl<C: AstFormatter> FmtWithCtx<C> for Terminator {
                     assert.with_ctx(ctx),
                 )
             }
+            TerminatorKind::InlineAsm {
+                asm,
+                targets,
+                on_unwind,
+            } => {
+                let targets = targets
+                    .iter()
+                    .enumerate()
+                    .map(|(i, target)| format!("target {i}: bb{target}"))
+                    .chain([format!("unwind: bb{on_unwind}")])
+                    .format(", ");
+                write!(f, "asm!({asm:?}) -> {targets}")
+            }
             TerminatorKind::Abort(kind) => write!(f, "{}", kind.with_ctx(ctx)),
             TerminatorKind::Return => write!(f, "return"),
             TerminatorKind::UnwindResume => write!(f, "unwind_continue"),
@@ -2015,14 +2048,13 @@ impl<C: AstFormatter> FmtWithCtx<C> for TraitImpl {
         } else {
             "\n".to_string()
         };
-        write!(f, "{newline}{{")?;
+        writeln!(f, "{newline}{{")?;
 
         let any_item = !self.implied_trait_refs.is_empty()
             || !self.consts.is_empty()
             || !self.types.is_empty()
             || !self.methods.is_empty();
         if any_item {
-            writeln!(f)?;
             for (i, c) in self.implied_trait_refs.iter().enumerate() {
                 let i = TraitClauseId::new(i);
                 writeln!(f, "{TAB_INCR}parent_clause{i} = {}", c.with_ctx(ctx))?;

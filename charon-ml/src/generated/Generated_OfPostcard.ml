@@ -243,6 +243,9 @@ and builtin_assert_kind_of_postcard (ctx : of_postcard_ctx)
      | 7 ->
          let* x_0 = operand_of_postcard ctx st in
          Ok (InvalidEnumConstruction x_0)
+     | 8 -> Ok ResumedAfterReturn
+     | 9 -> Ok ResumedAfterPanic
+     | 10 -> Ok ResumedAfterDrop
      | _ -> Error ("unknown enum variant tag: " ^ string_of_int __tag))
 
 and builtin_fun_id_of_postcard (ctx : of_postcard_ctx) (st : postcard_state) :
@@ -1048,10 +1051,6 @@ and rvalue_of_postcard (ctx : of_postcard_ctx) (st : postcard_state) :
          let* x_1 = ty_of_postcard ctx st in
          let* x_2 = box_of_postcard constant_expr_of_postcard ctx st in
          Ok (Repeat (x_0, x_1, x_2))
-     | 10 ->
-         let* x_0 = operand_of_postcard ctx st in
-         let* x_1 = ty_of_postcard ctx st in
-         Ok (ShallowInitBox (x_0, x_1))
      | _ -> Error ("unknown enum variant tag: " ^ string_of_int __tag))
 
 and scalar_value_of_postcard (ctx : of_postcard_ctx) (st : postcard_state) :
@@ -1462,10 +1461,15 @@ module Ullbc = struct
            let* on_unwind = block_id_of_postcard ctx st in
            Ok (TAssert (assert_, target, on_unwind))
        | 5 ->
+           let* asm = string_of_postcard ctx st in
+           let* targets = list_of_postcard block_id_of_postcard ctx st in
+           let* on_unwind = block_id_of_postcard ctx st in
+           Ok (InlineAsm (asm, targets, on_unwind))
+       | 6 ->
            let* x_0 = abort_kind_of_postcard ctx st in
            Ok (Abort x_0)
-       | 6 -> Ok Return
-       | 7 -> Ok UnwindResume
+       | 7 -> Ok Return
+       | 8 -> Ok UnwindResume
        | _ -> Error ("unknown enum variant tag: " ^ string_of_int __tag))
 end
 
@@ -1531,26 +1535,30 @@ module Llbc = struct
            let* on_failure = abort_kind_of_postcard ctx st in
            Ok (Assert (assert_, on_failure))
        | 8 ->
+           let* asm = string_of_postcard ctx st in
+           let* targets = list_of_postcard block_of_postcard ctx st in
+           Ok (InlineAsm (asm, targets))
+       | 9 ->
            let* x_0 = call_of_postcard ctx st in
            Ok (Call x_0)
-       | 9 ->
+       | 10 ->
            let* x_0 = abort_kind_of_postcard ctx st in
            Ok (Abort x_0)
-       | 10 -> Ok Return
-       | 11 ->
-           let* x_0 = usize_of_postcard ctx st in
-           Ok (Break x_0)
+       | 11 -> Ok Return
        | 12 ->
            let* x_0 = usize_of_postcard ctx st in
+           Ok (Break x_0)
+       | 13 ->
+           let* x_0 = usize_of_postcard ctx st in
            Ok (Continue x_0)
-       | 13 -> Ok Nop
-       | 14 ->
+       | 14 -> Ok Nop
+       | 15 ->
            let* x_0 = switch_of_postcard ctx st in
            Ok (Switch x_0)
-       | 15 ->
+       | 16 ->
            let* x_0 = block_of_postcard ctx st in
            Ok (Loop x_0)
-       | 16 ->
+       | 17 ->
            let* x_0 = string_of_postcard ctx st in
            Ok (Error x_0)
        | _ -> Error ("unknown enum variant tag: " ^ string_of_int __tag))
@@ -2028,8 +2036,9 @@ and global_kind_of_postcard (ctx : of_postcard_ctx) (st : postcard_state) :
     (let* __tag = int_of_postcard ctx st in
      match __tag with
      | 0 -> Ok Static
-     | 1 -> Ok NamedConst
-     | 2 -> Ok AnonConst
+     | 1 -> Ok ThreadLocal
+     | 2 -> Ok NamedConst
+     | 3 -> Ok AnonConst
      | _ -> Error ("unknown enum variant tag: " ^ string_of_int __tag))
 
 and index_map_of_postcard :
@@ -2166,7 +2175,8 @@ and layout_of_postcard (ctx : of_postcard_ctx) (st : postcard_state) :
      let* discriminator = option_of_postcard discriminator_of_postcard ctx st in
      let* uninhabited = bool_of_postcard ctx st in
      let* variant_layouts =
-       index_vec_of_postcard variant_id_of_postcard variant_layout_of_postcard
+       index_vec_of_postcard variant_id_of_postcard
+         (option_of_postcard variant_layout_of_postcard)
          ctx st
      in
      let* repr = repr_options_of_postcard ctx st in

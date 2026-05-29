@@ -1,5 +1,7 @@
 //! The Charon driver, which calls Rustc with callbacks to compile some Rust
 //! crate to LLBC.
+// For rustdoc: prevents overflows
+#![recursion_limit = "256"]
 #![feature(rustc_private)]
 #![allow(clippy::arc_with_non_send_sync)]
 #![allow(clippy::borrowed_box)]
@@ -11,7 +13,6 @@
 #![expect(incomplete_features)]
 #![feature(box_patterns)]
 #![feature(deref_patterns)]
-#![feature(if_let_guard)]
 #![feature(iter_array_chunks)]
 #![feature(iterator_try_collect)]
 #![feature(macro_metavar_expr)]

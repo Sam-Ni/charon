@@ -76,6 +76,9 @@ and builtin_assert_kind =
           - [found] *)
   | NullPointerDereference
   | InvalidEnumConstruction of operand
+  | ResumedAfterReturn
+  | ResumedAfterPanic
+  | ResumedAfterDrop
 
 and call = { func : fn_operand; args : operand list; dest : place }
 and copy_non_overlapping = { src : operand; dst : operand; count : operand }
@@ -180,6 +183,7 @@ type global_decl = {
 
 and global_kind =
   | Static  (** A static. *)
+  | ThreadLocal  (** A thread-local static. *)
   | NamedConst
       (** A const with a name (either top-level or an associated const in a
           trait). *)

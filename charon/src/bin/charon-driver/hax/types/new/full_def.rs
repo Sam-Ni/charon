@@ -106,7 +106,6 @@ where
                 param_env,
                 ty,
                 kind: ConstKind::PromotedConst,
-                value: None,
             };
 
             lang_item = Default::default();
@@ -439,14 +438,12 @@ pub enum FullDefKind<'tcx> {
         param_env: ParamEnv,
         ty: Ty,
         kind: ConstKind,
-        value: Option<ConstantExpr>,
     },
     /// Associated constant: `trait MyTrait { const ASSOC: usize; }`
     AssocConst {
         param_env: ParamEnv,
         associated_item: AssocItem,
         ty: Ty,
-        value: Option<ConstantExpr>,
     },
     Static {
         param_env: ParamEnv,
@@ -454,6 +451,8 @@ pub enum FullDefKind<'tcx> {
         safety: Safety,
         /// Whether it's a `static mut` or just a `static`.
         mutability: Mutability,
+        /// Whether it's a `#[thread_local] static`.
+        thread_local: bool,
         /// Whether it's an anonymous static generated for nested allocations.
         nested: bool,
         ty: Ty,
@@ -928,14 +927,12 @@ where
                 param_env: get_param_env(s, args),
                 ty: self_ty.sinto(s),
                 kind,
-                value: const_value(s, def_id, args_or_default()),
             }
         }
         RDefKind::AssocConst { .. } => FullDefKind::AssocConst {
             param_env: get_param_env(s, args),
             associated_item: AssocItem::sfrom_instantiated(s, &tcx.associated_item(def_id), args),
             ty: type_of_self().sinto(s),
-            value: const_value(s, def_id, args_or_default()),
         },
         RDefKind::Static {
             safety,
@@ -946,6 +943,7 @@ where
             param_env: get_param_env(s, args),
             safety: safety.sinto(s),
             mutability: mutability.sinto(s),
+            thread_local: tcx.is_thread_local_static(def_id),
             nested: nested.sinto(s),
             ty: type_of_self().sinto(s),
         },
@@ -1075,6 +1073,26 @@ impl<'tcx> FullDef<'tcx> {
 
     pub fn kind(&self) -> &FullDefKind<'tcx> {
         &self.kind
+    }
+
+    /// Evaluate the value of a `Const` or `AssocConst` item.
+    pub fn const_value<S>(&self, s: &S) -> Option<ConstantExpr>
+    where
+        S: BaseState<'tcx>,
+    {
+        match self.kind() {
+            FullDefKind::Const { .. } | FullDefKind::AssocConst { .. } => {}
+            _ => panic!("expected a Const or AssocConst definition"),
+        }
+        let s = &s.with_hax_owner(self.def_id());
+        let def_id = self.def_id().as_rust_def_id()?;
+        let args = self.this().rustc_args(s);
+        let uneval = ty::UnevaluatedConst::new(def_id, args);
+        let c = eval_ty_constant(s, uneval)?;
+        match c.kind() {
+            ty::ConstKind::Error(..) => None,
+            _ => Some(c.sinto(s)),
+        }
     }
 
     /// Returns the generics and predicates for definitions that have those.
@@ -1309,7 +1327,7 @@ fn get_param_env<'tcx, S: UnderOwnerState<'tcx>>(
             predicates: if is_typeck_child {
                 GenericPredicates::default()
             } else {
-                ItemPredicates::required(tcx, def_id, &s.base().options.bounds_options).sinto(s)
+                ItemPredicates::required(s.base().elab_ctx, def_id).sinto(s)
             },
             parent,
         },
@@ -1333,25 +1351,11 @@ fn get_implied_predicates<'tcx, S: UnderOwnerState<'tcx>>(
     let tcx = s.base().tcx;
     let def_id = s.owner_id();
     let typing_env = s.typing_env();
-    let mut implied_predicates =
-        ItemPredicates::implied(tcx, def_id, &s.base().options.bounds_options);
+    let mut implied_predicates = ItemPredicates::implied(s.base().elab_ctx, def_id);
     if args.is_some() {
         for pred in implied_predicates.iter_mut() {
             pred.clause = substitute(tcx, typing_env, args, pred.clause);
         }
     }
     implied_predicates.sinto(s)
-}
-
-fn const_value<'tcx, S: UnderOwnerState<'tcx>>(
-    s: &S,
-    def_id: RDefId,
-    args: ty::GenericArgsRef<'tcx>,
-) -> Option<ConstantExpr> {
-    let uneval = ty::UnevaluatedConst::new(def_id, args);
-    let c = eval_ty_constant(s, uneval)?;
-    match c.kind() {
-        ty::ConstKind::Error(..) => None,
-        _ => Some(c.sinto(s)),
-    }
 }

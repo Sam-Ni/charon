@@ -77,6 +77,18 @@ let opt_indexed_map_of_postcard :
 
 let rec ___ = ()
 
+and abi_of_postcard (ctx : of_postcard_ctx) (st : postcard_state) :
+    (abi, string) result =
+  combine_error_msgs st __FUNCTION__
+    (let* __tag = int_of_postcard ctx st in
+     match __tag with
+     | 0 -> Ok AbiRust
+     | 1 -> Ok AbiC
+     | 2 ->
+         let* x_0 = string_of_postcard ctx st in
+         Ok (AbiOther x_0)
+     | _ -> Error ("unknown enum variant tag: " ^ string_of_int __tag))
+
 and abort_kind_of_postcard (ctx : of_postcard_ctx) (st : postcard_state) :
     (abort_kind, string) result =
   combine_error_msgs st __FUNCTION__
@@ -597,9 +609,10 @@ and fun_sig_of_postcard (ctx : of_postcard_ctx) (st : postcard_state) :
     (fun_sig, string) result =
   combine_error_msgs st __FUNCTION__
     (let* is_unsafe = bool_of_postcard ctx st in
+     let* abi = abi_of_postcard ctx st in
      let* inputs = list_of_postcard ty_of_postcard ctx st in
      let* output = ty_of_postcard ctx st in
-     Ok ({ is_unsafe; inputs; output } : fun_sig))
+     Ok ({ is_unsafe; abi; inputs; output } : fun_sig))
 
 and generic_args_of_postcard (ctx : of_postcard_ctx) (st : postcard_state) :
     (generic_args, string) result =
@@ -1258,6 +1271,10 @@ and ty_kind_of_postcard (ctx : of_postcard_ctx) (st : postcard_state) :
          let* x_0 = ty_of_postcard ctx st in
          Ok (TSlice x_0)
      | 13 ->
+         let* x_0 = ty_of_postcard ctx st in
+         let* x_1 = type_pattern_of_postcard ctx st in
+         Ok (TPattern (x_0, x_1))
+     | 14 ->
          let* x_0 = string_of_postcard ctx st in
          Ok (TError x_0)
      | _ -> Error ("unknown enum variant tag: " ^ string_of_int __tag))
@@ -1293,6 +1310,21 @@ and type_param_of_postcard (ctx : of_postcard_ctx) (st : postcard_state) :
     (let* index = type_var_id_of_postcard ctx st in
      let* name = string_of_postcard ctx st in
      Ok ({ index; name } : type_param))
+
+and type_pattern_of_postcard (ctx : of_postcard_ctx) (st : postcard_state) :
+    (type_pattern, string) result =
+  combine_error_msgs st __FUNCTION__
+    (let* __tag = int_of_postcard ctx st in
+     match __tag with
+     | 0 ->
+         let* x_0 = box_of_postcard constant_expr_of_postcard ctx st in
+         let* x_1 = box_of_postcard constant_expr_of_postcard ctx st in
+         Ok (Range (x_0, x_1))
+     | 1 ->
+         let* x_0 = list_of_postcard type_pattern_of_postcard ctx st in
+         Ok (OrPattern x_0)
+     | 2 -> Ok NotNull
+     | _ -> Error ("unknown enum variant tag: " ^ string_of_int __tag))
 
 and type_var_id_of_postcard (ctx : of_postcard_ctx) (st : postcard_state) :
     (type_var_id, string) result =
@@ -1960,7 +1992,7 @@ and fun_decl_of_postcard (ctx : of_postcard_ctx) (st : postcard_state) :
     (let* def_id = fun_decl_id_of_postcard ctx st in
      let* item_meta = item_meta_of_postcard ctx st in
      let* generics = generic_params_of_postcard ctx st in
-     let* signature = fun_sig_of_postcard ctx st in
+     let* signature = box_of_postcard fun_sig_of_postcard ctx st in
      let* src = item_source_of_postcard ctx st in
      let* is_global_initializer =
        option_of_postcard global_decl_id_of_postcard ctx st

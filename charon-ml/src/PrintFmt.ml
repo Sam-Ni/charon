@@ -356,6 +356,17 @@ let region_binder_to_string (value_to_string : fmt_env -> 'c -> string)
         (fun env fmt value -> pp_string fmt (value_to_string env value))
         env fmt rb)
 
+let abi_name (abi : abi) : string =
+  match abi with
+  | AbiRust -> "Rust"
+  | AbiC -> "C"
+  | AbiOther name -> name
+
+let abi_prefix (abi : abi) : string =
+  match abi with
+  | AbiRust -> ""
+  | _ -> "extern \"" ^ abi_name abi ^ "\" "
+
 let rec pp_type_id (env : fmt_env) (fmt : Format.formatter) (id : type_id) :
     unit =
   match id with
@@ -564,6 +575,8 @@ and pp_ty (env : fmt_env) (fmt : Format.formatter) (ty : ty) : unit =
   | TVar tv -> pp_string fmt (type_db_var_to_string env tv)
   | TNever -> pp_string fmt "!"
   | TLiteral lit_ty -> pp_literal_type fmt lit_ty
+  | TPattern (ty, pat) ->
+      Format.fprintf fmt "%a is %a" (pp_ty env) ty (pp_type_pattern env) pat
   | TTraitType (trait_ref, type_id) ->
       let type_name =
         GAstUtils.get_assoc_type_name env.crate
@@ -583,9 +596,10 @@ and pp_ty (env : fmt_env) (fmt : Format.formatter) (ty : ty) : unit =
       | RShared -> Format.fprintf fmt "*const %a" (pp_ty env) rty)
   | TFnPtr binder ->
       let env = fmt_env_push_regions env binder.binder_regions in
-      let { inputs; output; is_unsafe } = binder.binder_value in
+      let { inputs; output; is_unsafe; abi } = binder.binder_value in
       let unsafe = if is_unsafe then "unsafe " else "" in
-      Format.fprintf fmt "%sfn" unsafe;
+      let abi = abi_prefix abi in
+      Format.fprintf fmt "%s%sfn" unsafe abi;
       if binder.binder_regions <> [] then
         Format.fprintf fmt "<%a>"
           (pp_sep_list ", " (fun fmt region ->
@@ -608,6 +622,18 @@ and pp_ty (env : fmt_env) (fmt : Format.formatter) (ty : ty) : unit =
   | TSlice ty -> Format.fprintf fmt "[%a]" (pp_ty env) ty
   | TPtrMetadata ty -> Format.fprintf fmt "PtrMetadata<%a>" (pp_ty env) ty
   | TError msg -> Format.fprintf fmt "type_error(\"%s\")" msg
+
+and pp_type_pattern (env : fmt_env) (fmt : Format.formatter)
+    (pat : type_pattern) : unit =
+  match pat with
+  | Range (start, stop) ->
+      Format.fprintf fmt "%a..=%a" (pp_constant_expr env) start
+        (pp_constant_expr env) stop
+  | OrPattern patterns ->
+      Format.fprintf fmt "(%a)"
+        (pp_sep_list " | " (pp_type_pattern env))
+        patterns
+  | NotNull -> pp_string fmt "!null"
 
 and ty_to_string env ty = pp_to_string (fun fmt -> pp_ty env fmt ty)
 
@@ -1405,6 +1431,7 @@ let pp_fun_sig_with_name (env : fmt_env) (indent : string)
 
   (* Unsafe keyword *)
   let unsafe = if sg.is_unsafe then "unsafe " else "" in
+  let abi = abi_prefix sg.abi in
 
   (* Generics and predicates *)
   let params, clauses =
@@ -1444,8 +1471,8 @@ let pp_fun_sig_with_name (env : fmt_env) (indent : string)
     | None -> ""
     | Some name -> " " ^ name
   in
-  Format.fprintf fmt "%s%s%sfn%s%s(%t)%s%s" indent attribute unsafe name params
-    pp_args ret_ty clauses
+  Format.fprintf fmt "%s%s%s%sfn%s%s(%t)%s%s" indent attribute unsafe abi name
+    params pp_args ret_ty clauses
 
 let pp_fun_sig (env : fmt_env) (indent : string) (indent_incr : string)
     (fmt : Format.formatter) (sg : fun_sig item_binder) : unit =
@@ -1457,9 +1484,9 @@ let pp_fun_sig (env : fmt_env) (indent : string) (indent_incr : string)
   let params =
     if params = [] then "" else "<" ^ String.concat ", " params ^ ">"
   in
-  Format.fprintf fmt "%s%sfn%s(" indent
+  Format.fprintf fmt "%s%s%sfn%s(" indent
     (if sg.is_unsafe then "unsafe " else "")
-    params;
+    (abi_prefix sg.abi) params;
   pp_sep_list ", "
     (fun fmt ty -> pp_string fmt (ty_to_string env ty))
     fmt sg.inputs;
@@ -1923,7 +1950,11 @@ let pp_ullbc_blocks (env : fmt_env) (indent : string) (indent_incr : string)
 
 let pp_fun_decl (env : fmt_env) (indent : string) (indent_incr : string)
     (fmt : Format.formatter) (def : fun_decl) : unit =
-  let keyword = if def.signature.is_unsafe then "unsafe fn" else "fn" in
+  let keyword =
+    (if def.signature.is_unsafe then "unsafe " else "")
+    ^ abi_prefix def.signature.abi
+    ^ "fn"
+  in
   let intro =
     item_intro_to_string env indent keyword (IdFun def.def_id) def.item_meta
   in

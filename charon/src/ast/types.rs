@@ -900,6 +900,9 @@ pub enum TyKind {
     Array(Ty, Box<ConstantExpr>),
     /// A slice type `[T]`
     Slice(Ty),
+    /// A pattern type. This is a newtype over the first type whose valid values are restricted by
+    /// the pattern.
+    Pattern(Ty, TypePattern),
     /// A type that could not be computed or was incorrect.
     #[drive(skip)]
     Error(String),
@@ -992,8 +995,47 @@ pub struct FunSig {
     /// Is the function unsafe or not
     #[drive(skip)]
     pub is_unsafe: bool,
+    /// The calling convention of this function.
+    #[drive(skip)]
+    pub abi: Abi,
     pub inputs: Vec<Ty>,
     pub output: Ty,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    VariantName,
+    EnumIsA,
+    SerializeState,
+    DeserializeState,
+    Drive,
+    DriveMut,
+)]
+#[serde_state(stateless)]
+#[cfg_attr(feature = "charon_on_charon", charon::variants_prefix("Abi"))]
+pub enum Abi {
+    Rust,
+    C,
+    /// Rust's spelling for the ABI, e.g. "C-unwind" or "system".
+    Other(#[drive(skip)] ustr::Ustr),
+}
+
+impl Abi {
+    pub fn rust() -> Self {
+        Self::Rust
+    }
+
+    pub fn rust_name(&self) -> &str {
+        match self {
+            Self::Rust => "Rust",
+            Self::C => "C",
+            Self::Other(name) => name.as_str(),
+        }
+    }
 }
 
 /// The contents of a `dyn Trait` type.
@@ -1006,4 +1048,25 @@ pub struct DynPredicate {
     /// Only the first trait clause may have methods. We use the vtable of this trait in the `dyn
     /// Trait` pointer metadata.
     pub binder: Binder<Ty>,
+}
+
+/// A type-level pattern used by [`TyKind::Pattern`].
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    VariantName,
+    EnumIsA,
+    SerializeState,
+    DeserializeState,
+    Drive,
+    DriveMut,
+)]
+#[serde_state(state_implements = HashConsSerializerState)] // Avoid corecursive impls due to perfect derive
+pub enum TypePattern {
+    Range(Box<ConstantExpr>, Box<ConstantExpr>),
+    OrPattern(Vec<TypePattern>),
+    NotNull,
 }

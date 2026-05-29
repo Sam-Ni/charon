@@ -194,7 +194,13 @@ class ['self] map_ty_base =
       AssocConstId.Map.visit_map
   end
 
-type assoc_const_id = (AssocConstId.id[@visitors.opaque])
+type abi =
+  | AbiRust
+  | AbiC
+  | AbiOther of string
+      (** Rust's spelling for the ABI, e.g. "C-unwind" or "system". *)
+
+and assoc_const_id = (AssocConstId.id[@visitors.opaque])
 and assoc_type_id = (AssocTypeId.id[@visitors.opaque])
 
 (** A value of type [T] bound by generic parameters. Used in any context where
@@ -469,6 +475,7 @@ and fun_id =
 (** A function signature. *)
 and fun_sig = {
   is_unsafe : bool;  (** Is the function unsafe or not *)
+  abi : abi;  (** The calling convention of this function. *)
   inputs : ty list;
   output : ty;
 }
@@ -779,6 +786,9 @@ and ty_kind =
           is assumed to be a type variable *)
   | TArray of ty * constant_expr  (** An array type [[T; N]] *)
   | TSlice of ty  (** A slice type [[T]] *)
+  | TPattern of ty * type_pattern
+      (** A pattern type. This is a newtype over the first type whose valid
+          values are restricted by the pattern. *)
   | TError of string  (** A type that could not be computed or was incorrect. *)
 
 (** Reference to a type declaration or builtin type. *)
@@ -809,6 +819,12 @@ and type_param = {
           level. *)
   name : string;  (** Variable name *)
 }
+
+(** A type-level pattern used by [[TyKind::Pattern]]. *)
+and type_pattern =
+  | Range of constant_expr * constant_expr
+  | OrPattern of type_pattern list
+  | NotNull
 
 and unsizing_metadata =
   | MetaLength of constant_expr  (** Cast from [[T; N]] to [[T]]. *)

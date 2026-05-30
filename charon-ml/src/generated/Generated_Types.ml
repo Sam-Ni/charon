@@ -267,22 +267,32 @@ and builtin_fun_id =
 (** Describes a built-in impl. Mostly lists the implemented trait, sometimes
     with more details about the contents of the implementation. *)
 and builtin_impl_data =
+  | BuiltinAuto
+      (** Auto traits (defined with [auto trait ...], also [Unpin]). *)
   | BuiltinSized
   | BuiltinMetaSized
+  | BuiltinPointeeSized
+  | BuiltinCopy
+  | BuiltinClone
   | BuiltinTuple
+  | BuiltinTransmute
+  | BuiltinUnsize
   | BuiltinPointee
   | BuiltinDiscriminantKind
-  | BuiltinAuto
+  | BuiltinFn
+  | BuiltinFnMut
+  | BuiltinFnOnce
+  | BuiltinFnPtr
+  | BuiltinAsyncFn
+  | BuiltinAsyncFnMut
+  | BuiltinAsyncFnOnce
+  | BuiltinCoroutine
+  | BuiltinFuture
   | BuiltinNoopDestruct
       (** An impl of [Destruct] for a type with no drop glue. *)
   | BuiltinUntrackedDestruct
       (** An impl of [Destruct] for a type parameter, which we could not resolve
           because [--add-drop-bounds] was not set. *)
-  | BuiltinFn
-  | BuiltinFnMut
-  | BuiltinFnOnce
-  | BuiltinCopy
-  | BuiltinClone
   | BuiltinRemovedAdtClause
       (** Placeholder used by the [--remove-adt-clauses] pass when it strips a
           trait clause from a type declaration. References to the removed clause
@@ -1026,7 +1036,9 @@ and item_source =
 
           Fields:
           - [trait_ref]: The trait declaration this item belongs to.
-          - [item_id]: The associated item this corresponds to.
+          - [item_id]: The associated item this corresponds to. Note that a
+            function could have [AssocItemId::Const] if it's the initializer of
+            a trait const.
           - [has_default]: Whether the trait declaration provides a default
             implementation. *)
   | TraitImplItem of trait_impl_ref * trait_decl_ref * assoc_item_id * bool
@@ -1035,7 +1047,9 @@ and item_source =
           Fields:
           - [impl_ref]: The trait implementation the method belongs to.
           - [trait_ref]: The trait declaration that the impl block implements.
-          - [item_id]: The associated item this corresponds to.
+          - [item_id]: The associated item this corresponds to. Note that a
+            function could have [AssocItemId::Const] if it's the initializer of
+            a trait const.
           - [reuses_default]: True if the trait decl had a default
             implementation for this function/const and this item is a copy of
             the default item. *)

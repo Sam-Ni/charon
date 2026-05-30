@@ -221,16 +221,16 @@ impl<'tcx> ItemTransCtx<'tcx, '_> {
                 let len = self.translate_constant_expr(span, len)?;
                 UnsizingMetadata::Length(Box::new(len))
             }
-            hax::UnsizingMetadata::DirectVTable(impl_expr) => {
-                let tref = self.translate_trait_impl_expr(span, impl_expr)?;
-                let vtable = self.translate_vtable_instance_const(span, impl_expr)?;
+            hax::UnsizingMetadata::DirectVTable(trait_proof) => {
+                let tref = self.translate_trait_proof(span, trait_proof)?;
+                let vtable = self.translate_vtable_instance_const(span, trait_proof)?;
                 UnsizingMetadata::VTable(tref, vtable)
             }
-            hax::UnsizingMetadata::NestedVTable(dyn_impl_expr) => {
+            hax::UnsizingMetadata::NestedVTable(dyn_trait_proof) => {
                 // This binds a fake `T: SrcTrait` variable.
                 let binder =
-                    self.translate_dyn_binder(span, dyn_impl_expr, |ctx, _, impl_expr| {
-                        ctx.translate_trait_impl_expr(span, impl_expr)
+                    self.translate_dyn_binder(span, dyn_trait_proof, |ctx, _, trait_proof| {
+                        ctx.translate_trait_proof(span, trait_proof)
                     })?;
 
                 // Compute the supertrait path from the source tref to the target
@@ -769,9 +769,17 @@ impl<'tcx> BlockTransCtx<'tcx, '_, '_, '_> {
                                     assert!(generics.regions.is_empty());
                                     assert!(generics.types.len() == 2);
                                     assert!(generics.const_generics.is_empty());
-                                    assert!(field_id == FieldId::ZERO);
-                                    // We pretend this is a deref.
-                                    ProjectionElem::Deref
+                                    if field_id == FieldId::ZERO {
+                                        // We pretend the pointee field is a deref.
+                                        ProjectionElem::Deref
+                                    } else {
+                                        raise_error!(
+                                            self,
+                                            span,
+                                            "trying to access the allocator field from Box, \
+                                            but it is being treated as a builtin (without allocator)"
+                                        )
+                                    }
                                 }
                                 _ => {
                                     raise_error!(self, span, "Unexpected field projection")
@@ -1042,20 +1050,6 @@ impl<'tcx> BlockTransCtx<'tcx, '_, '_, '_> {
             }
             mir::Rvalue::Discriminant(place) => {
                 let place = self.translate_place(span, place)?;
-                // We should always know the enum type; it can't be a generic.
-                if !place
-                    .ty()
-                    .kind()
-                    .as_adt()
-                    .is_some_and(|tref| tref.id.is_adt())
-                {
-                    raise_error!(
-                        self,
-                        span,
-                        "Unexpected scrutinee type for ReadDiscriminant: {}",
-                        place.ty().with_ctx(&self.into_fmt())
-                    )
-                }
                 Ok(Rvalue::Discriminant(place))
             }
             mir::Rvalue::Aggregate(aggregate_kind, operands) => {

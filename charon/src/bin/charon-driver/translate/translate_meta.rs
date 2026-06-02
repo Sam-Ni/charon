@@ -445,7 +445,8 @@ impl<'tcx> TranslateCtx<'tcx> {
             let span = self.def_span(&item_ref.def_id);
             let mut bt_ctx = ItemTransCtx::new(src.clone(), trans_id, self);
             let binder = bt_ctx.inside_binder(BinderKind::Other, |bt_ctx| {
-                bt_ctx.translate_generic_args(span, &item_ref.generic_args, &item_ref.trait_proofs)
+                // We skip the clauses: the args are enough to uniquely identify an ite.
+                bt_ctx.translate_generic_args(span, &item_ref.generic_args, &[])
             })?;
             if !binder.skip_binder.is_empty() {
                 name.name.push(PathElem::Instantiated(Box::new(binder)));
@@ -497,6 +498,8 @@ impl<'tcx> TranslateCtx<'tcx> {
             "opaque" if args.is_none() => Attribute::Opaque,
             // `#[charon::opaque]`
             "exclude" if args.is_none() => Attribute::Exclude,
+            // `#[charon::transparent]`
+            "transparent" if args.is_none() => Attribute::Transparent,
             // `#[charon::rename("new_name")]`
             "rename" if let Some(attr) = args => {
                 let Some(attr) = attr

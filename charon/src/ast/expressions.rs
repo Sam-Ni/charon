@@ -650,6 +650,8 @@ pub enum ConstantExprKind {
     ///
     /// We eliminate this case in a micro-pass.
     FnPtr(FnPtr),
+    /// The `TypeId` value for a type.
+    TypeId(Ty),
     /// A pointer with no provenance (e.g. 0 for the null pointer)
     ///
     /// We eliminate this case in a micro-pass.
@@ -671,6 +673,15 @@ pub struct ConstantExpr {
     pub ty: Ty,
 }
 
+/// Used for [`Rvalue::Use`] to indicate whether the operand should be retagged (this is used
+/// for Rust's aliasing model).
+#[derive(Debug, Hash, PartialEq, Eq, Clone, SerializeState, DeserializeState, Drive, DriveMut)]
+#[cfg_attr(feature = "charon_on_charon", charon::variants_suffix("Retag"))]
+pub enum WithRetag {
+    No,
+    Yes,
+}
+
 /// TODO: we could factor out [Rvalue] and function calls (for LLBC, not ULLBC).
 /// We can also factor out the unops, binops with the function calls.
 /// TODO: move the aggregate kind to operands
@@ -690,7 +701,7 @@ pub struct ConstantExpr {
 )]
 pub enum Rvalue {
     /// Lifts an operand as an rvalue.
-    Use(Operand),
+    Use(Operand, #[drive(skip)] WithRetag),
     /// Takes a reference to the given place.
     /// The `Operand` refers to the init value of the metadata, it is `()` if no metadata
     #[cfg_attr(feature = "charon_on_charon", charon::rename("RvRef"))]

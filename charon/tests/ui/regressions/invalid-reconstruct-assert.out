@@ -9,7 +9,7 @@ pub enum Ordering {
 }
 
 // Full name: core::cmp::impls::{impl Ord for u32}::cmp
-pub fn {impl Ord for u32}::cmp<'_0, '_1>(_1: &'_0 u32, _2: &'_1 u32) -> Ordering
+pub fn impl_Ord_for_u32::cmp<'_0, '_1>(_1: &'_0 u32, _2: &'_1 u32) -> Ordering
 = <opaque>
 
 // Full name: core::marker::Destruct
@@ -28,15 +28,15 @@ pub trait MetaSized<Self>
 #[lang_item("sized")]
 pub trait Sized<Self>
 {
-    parent_clause0 : [@TraitClause0]: MetaSized<Self>
+    proof ImpliedClause0: (Self: MetaSized)
     non-dyn-compatible
 }
 
 // Full name: core::hint::select_unpredictable
 pub fn select_unpredictable<T>(_1: bool, _2: T, _3: T) -> T
 where
-    [@TraitClause0]: Sized<T>,
-    [@TraitClause1]: Destruct<T>,
+    TraitClause0: (T: Sized),
+    TraitClause1: (T: Destruct),
 = <opaque>
 
 unsafe fn core::marker::Destruct::drop_in_place<Self>(_1: *mut Self)
@@ -46,7 +46,7 @@ unsafe fn core::marker::Destruct::drop_in_place<Self>(_1: *mut Self)
 #[lang_item("tuple_trait")]
 pub trait Tuple<Self>
 {
-    parent_clause0 : [@TraitClause0]: MetaSized<Self>
+    proof ImpliedClause0: (Self: MetaSized)
     non-dyn-compatible
 }
 
@@ -54,10 +54,10 @@ pub trait Tuple<Self>
 #[lang_item("fn_once")]
 pub trait FnOnce<Self, Args>
 {
-    parent_clause0 : [@TraitClause0]: MetaSized<Self>
-    parent_clause1 : [@TraitClause1]: Sized<Args>
-    parent_clause2 : [@TraitClause2]: Tuple<Args>
-    parent_clause3 : [@TraitClause3]: Sized<Self::Output>
+    proof ImpliedClause0: (Self: MetaSized)
+    proof ImpliedClause1: (Args: Sized)
+    proof ImpliedClause2: (Args: Tuple)
+    proof ImpliedClause3: (Self::Output: Sized)
     type Output
     fn call_once = core::ops::function::FnOnce::call_once<Self, Args>[Self]
     vtable: core::ops::function::FnOnce::{vtable}<Args, Self::Output>
@@ -67,30 +67,30 @@ pub trait FnOnce<Self, Args>
 #[lang_item("fn_mut")]
 pub trait FnMut<Self, Args>
 {
-    parent_clause0 : [@TraitClause0]: MetaSized<Self>
-    parent_clause1 : [@TraitClause1]: FnOnce<Self, Args>
-    parent_clause2 : [@TraitClause2]: Sized<Args>
-    parent_clause3 : [@TraitClause3]: Tuple<Args>
+    proof ImpliedClause0: (Self: MetaSized)
+    proof ImpliedClause1: (Self: FnOnce<Args>)
+    proof ImpliedClause2: (Args: Sized)
+    proof ImpliedClause3: (Args: Tuple)
     fn call_mut<'_0_1> = core::ops::function::FnMut::call_mut<'_0_1, Self, Args>[Self]
-    vtable: core::ops::function::FnMut::{vtable}<Args, Self::parent_clause1::Output>
+    vtable: core::ops::function::FnMut::{vtable}<Args, Self::ImpliedClause1::Output>
 }
 
-pub extern "rust-call" fn core::ops::function::FnMut::call_mut<'_0, Self, Args>(_1: &'_0 mut Self, _2: Args) -> @TraitClause0::parent_clause1::Output
+pub extern "rust-call" fn core::ops::function::FnMut::call_mut<'_0, Self, Args>(_1: &'_0 mut Self, _2: Args) -> TraitClause0::ImpliedClause1::Output
 where
-    [@TraitClause0]: FnMut<Self, Args>,
+    TraitClause0: (Self: FnMut<Args>),
 = <opaque>
 
-pub extern "rust-call" fn core::ops::function::FnOnce::call_once<Self, Args>(_1: Self, _2: Args) -> @TraitClause0::Output
+pub extern "rust-call" fn core::ops::function::FnOnce::call_once<Self, Args>(_1: Self, _2: Args) -> TraitClause0::Output
 where
-    [@TraitClause0]: FnOnce<Self, Args>,
+    TraitClause0: (Self: FnOnce<Args>),
 = <opaque>
 
 // Full name: core::result::Result
 #[lang_item("Result")]
 pub enum Result<T, E>
 where
-    [@TraitClause0]: Sized<T>,
-    [@TraitClause1]: Sized<E>,
+    TraitClause0: (T: Sized),
+    TraitClause1: (E: Sized),
 {
   Ok(T),
   Err(E),
@@ -100,16 +100,16 @@ fn core::hint::assert_unchecked::precondition_check(_1: bool)
 = <opaque>
 
 // Full name: core::slice::index::{impl SliceIndex<[T]> for usize}::get_unchecked::precondition_check
-fn {impl SliceIndex<[T]> for usize}::get_unchecked::precondition_check(_1: usize, _2: usize)
+fn impl_SliceIndex_slice_for_usize::get_unchecked::precondition_check(_1: usize, _2: usize)
 = <opaque>
 
 // Full name: core::slice::{[T]}::binary_search_by
 pub fn binary_search_by<'a, T, F>(self_1: &'a [T], f_2: F) -> Result<usize, usize>[{built_in impl Sized for usize}, {built_in impl Sized for usize}]
 where
-    [@TraitClause0]: Sized<T>,
-    [@TraitClause1]: Sized<F>,
-    [@TraitClause2]: FnMut<F, (&'a T,)>,
-    @TraitClause2::parent_clause1::Output = Ordering,
+    TraitClause0: (T: Sized),
+    TraitClause1: (F: Sized),
+    TraitClause2: (F: FnMut<(&'a T,)>),
+    TypeConstraint0: TraitClause2::ImpliedClause1::Output = Ordering,
 {
     let _0: Result<usize, usize>[{built_in impl Sized for usize}, {built_in impl Sized for usize}]; // return
     let self_1: &'1 [T]; // arg #1
@@ -161,11 +161,8 @@ where
 
     bb0: {
         storage_live(base_5);
-        storage_live(half_8);
-        storage_live(mid_10);
         storage_live(_15);
         storage_live(_21);
-        storage_live(result_25);
         storage_live(_30);
         storage_live(_36);
         storage_live(_38);
@@ -176,13 +173,13 @@ where
         size_3 = copy self_1.metadata;
         storage_live(_4);
         _4 = copy size_3;
-        switch copy _4 -> 0 : usize: bb1, otherwise: bb2;
+        switch copy _4 -> 0usize: bb1, otherwise: bb2;
     }
 
     bb1: {
         storage_dead(_4);
         storage_live(_46);
-        _46 = Result::Err { 0: const 0 : usize };
+        _46 = Result::Err { 0: const 0usize };
         _0 = move _46;
         storage_dead(size_3);
         drop[{built_in impl Destruct for F}::drop_in_place] f_2 -> bb31 (unwind: bb3);
@@ -190,7 +187,7 @@ where
 
     bb2: {
         storage_dead(_4);
-        base_5 = const 0 : usize;
+        base_5 = const 0usize;
         goto bb4;
     }
 
@@ -202,16 +199,18 @@ where
         storage_live(_6);
         storage_live(_7);
         _7 = copy size_3;
-        _6 = move _7 > const 1 : usize;
+        _6 = move _7 > const 1usize;
         if move _6 -> bb5 else -> bb6;
     }
 
     bb5: {
         storage_dead(_7);
+        storage_live(half_8);
         storage_live(_9);
         _9 = copy size_3;
-        half_8 = move _9 ub./ const 2 : usize;
+        half_8 = move _9 ub./ const 2usize;
         storage_dead(_9);
+        storage_live(mid_10);
         storage_live(_11);
         _11 = copy base_5;
         mid_10 = move _11 wrap.+ copy half_8;
@@ -244,7 +243,7 @@ where
     bb7: {
         storage_live(_31);
         _31 = copy self_1.metadata;
-        _30 = {impl SliceIndex<[T]> for usize}::get_unchecked::precondition_check(copy mid_10, move _31) -> bb12 (unwind: bb11);
+        _30 = impl_SliceIndex_slice_for_usize::get_unchecked::precondition_check(copy mid_10, move _31) -> bb12 (unwind: bb11);
     }
 
     bb8: {
@@ -259,13 +258,13 @@ where
         _15 = &(*_29);
         storage_dead(_29);
         _14 = (copy _15,);
-        cmp_12 = @TraitClause2::call_mut<'19>(move _13, move _14) -> bb14 (unwind: bb13);
+        cmp_12 = TraitClause2::call_mut<'19>(move _13, move _14) -> bb14 (unwind: bb13);
     }
 
     bb9: {
         storage_live(_37);
         _37 = copy self_1.metadata;
-        _36 = {impl SliceIndex<[T]> for usize}::get_unchecked::precondition_check(copy index_22, move _37) -> bb16 (unwind: bb15);
+        _36 = impl_SliceIndex_slice_for_usize::get_unchecked::precondition_check(copy index_22, move _37) -> bb16 (unwind: bb15);
     }
 
     bb10: {
@@ -275,7 +274,7 @@ where
         storage_dead(_35);
         storage_dead(index_22);
         _20 = (copy _21,);
-        cmp_18 = @TraitClause2::call_mut<'24>(move _19, move _20) -> bb17 (unwind: bb13);
+        cmp_18 = TraitClause2::call_mut<'24>(move _19, move _20) -> bb17 (unwind: bb13);
     }
 
     bb11: {
@@ -298,7 +297,7 @@ where
         storage_live(_17);
         storage_live(_34);
         _34 = @discriminant(cmp_12);
-        _17 = copy _34 == const 1 : i8;
+        _17 = copy _34 == const 1i8;
         storage_dead(_34);
         _16 = select_unpredictable<usize>[{built_in impl Sized for usize}, {built_in impl Destruct for usize}](move _17, move base_5, move mid_10) -> bb20 (unwind: bb13);
     }
@@ -316,7 +315,7 @@ where
         storage_dead(_20);
         storage_dead(_19);
         _39 = @discriminant(cmp_18);
-        switch copy _39 -> 0 : i8: bb21, otherwise: bb22;
+        switch copy _39 -> 0i8: bb21, otherwise: bb22;
     }
 
     bb18: {
@@ -333,6 +332,8 @@ where
         storage_dead(_16);
         size_3 = copy size_3 wrap.- copy half_8;
         storage_dead(cmp_12);
+        storage_dead(mid_10);
+        storage_dead(half_8);
         storage_dead(_6);
         goto bb4;
     }
@@ -349,9 +350,10 @@ where
     }
 
     bb22: {
+        storage_live(result_25);
         storage_live(_26);
         storage_live(_27);
-        _27 = copy _39 == const -1 : i8;
+        _27 = copy _39 == const -1i8;
         _26 = cast<bool, usize>(move _27);
         storage_dead(_27);
         result_25 = move base_5 wrap.+ move _26;
@@ -382,6 +384,7 @@ where
         assert(copy cond_28 == true) else undefined_behavior;
         storage_dead(cond_28);
         _0 = Result::Err { 0: copy result_25 };
+        storage_dead(result_25);
         goto bb28;
     }
 
@@ -416,7 +419,7 @@ where
 struct closure {}
 
 // Full name: test_crate::main::{impl FnMut<(&'_ u32,)> for closure}::call_mut
-fn {impl FnMut<(&'_ u32,)> for closure}::call_mut<'_0, '_1>(_1: &'_1 mut closure, tupled_args_2: (&'_0 u32,)) -> Ordering
+fn impl_FnMut_tuple_for_closure::call_mut<'_0, '_1>(_1: &'_1 mut closure, tupled_args_2: (&'_0 u32,)) -> Ordering
 {
     let _0: Ordering; // return
     let _1: &'1 mut closure; // arg #1
@@ -434,7 +437,7 @@ fn {impl FnMut<(&'_ u32,)> for closure}::call_mut<'_0, '_1>(_1: &'_1 mut closure
         storage_live(_8);
         storage_live(_9);
         storage_live(_10);
-        _10 = const 3 : u32;
+        _10 = const 3u32;
         _9 = &_10;
         _8 = move _9;
         storage_live(x_3);
@@ -447,7 +450,7 @@ fn {impl FnMut<(&'_ u32,)> for closure}::call_mut<'_0, '_1>(_1: &'_1 mut closure
         _7 = move _8;
         _6 = &(*_7);
         _5 = &(*_6);
-        _0 = {impl Ord for u32}::cmp<'10, '11>(move _4, move _5) -> bb2 (unwind: bb1);
+        _0 = impl_Ord_for_u32::cmp<'10, '11>(move _4, move _5) -> bb2 (unwind: bb1);
     }
 
     bb1: {
@@ -463,11 +466,11 @@ fn {impl FnMut<(&'_ u32,)> for closure}::call_mut<'_0, '_1>(_1: &'_1 mut closure
 }
 
 // Full name: test_crate::main::closure::{impl Destruct for closure}::drop_in_place
-unsafe fn {impl Destruct for closure}::drop_in_place(_1: *mut closure)
+unsafe fn impl_Destruct_for_closure::drop_in_place(_1: *mut closure)
 = <missing>
 
 // Full name: test_crate::main::{impl FnOnce<(&'_ u32,)> for closure}::call_once
-fn {impl FnOnce<(&'_ u32,)> for closure}::call_once<'_0>(_1: closure, _2: (&'_0 u32,)) -> Ordering
+fn impl_FnOnce_tuple_for_closure::call_once<'_0>(_1: closure, _2: (&'_0 u32,)) -> Ordering
 {
     let _0: Ordering; // return
     let _1: closure; // arg #1
@@ -477,15 +480,15 @@ fn {impl FnOnce<(&'_ u32,)> for closure}::call_once<'_0>(_1: closure, _2: (&'_0 
     bb0: {
         storage_live(_3);
         _3 = &mut _1;
-        _0 = {impl FnMut<(&'_ u32,)> for closure}::call_mut<'_0, '8>(move _3, move _2) -> bb2 (unwind: bb1);
+        _0 = impl_FnMut_tuple_for_closure::call_mut<'_0, '8>(move _3, move _2) -> bb2 (unwind: bb1);
     }
 
     bb1: {
-        drop[{impl Destruct for closure}::drop_in_place] _1 -> bb3 (unwind: bb4);
+        drop[impl_Destruct_for_closure::drop_in_place] _1 -> bb3 (unwind: bb4);
     }
 
     bb2: {
-        drop[{impl Destruct for closure}::drop_in_place] _1 -> bb6 (unwind: bb5);
+        drop[impl_Destruct_for_closure::drop_in_place] _1 -> bb6 (unwind: bb5);
     }
 
     bb3: {
@@ -506,23 +509,23 @@ fn {impl FnOnce<(&'_ u32,)> for closure}::call_once<'_0>(_1: closure, _2: (&'_0 
 }
 
 // Full name: test_crate::main::{impl FnOnce<(&'_ u32,)> for closure}
-impl<'_0> FnOnce<(&'_ u32,)> for closure {
-    parent_clause0 = {built_in impl MetaSized for closure}
-    parent_clause1 = {built_in impl Sized for (&'_ u32,)}
-    parent_clause2 = {built_in impl Tuple for (&'_ u32,)}
-    parent_clause3 = {built_in impl Sized for Ordering}
+impl<'_0> "impl_FnOnce_tuple_for_closure" FnOnce<(&'_ u32,)> for closure {
+    proof ImpliedClause0: (closure: MetaSized) = {built_in impl MetaSized for closure}
+    proof ImpliedClause1: ((&'_ u32,): Sized) = {built_in impl Sized for (&'_ u32,)}
+    proof ImpliedClause2: ((&'_ u32,): Tuple) = {built_in impl Tuple for (&'_ u32,)}
+    proof ImpliedClause3: (Ordering: Sized) = {built_in impl Sized for Ordering}
     type Output = Ordering
-    fn call_once = {impl FnOnce<(&'_ u32,)> for closure}::call_once<'_0>
+    fn call_once = impl_FnOnce_tuple_for_closure::call_once<'_0>
     non-dyn-compatible
 }
 
 // Full name: test_crate::main::{impl FnMut<(&'_ u32,)> for closure}
-impl<'_0> FnMut<(&'_ u32,)> for closure {
-    parent_clause0 = {built_in impl MetaSized for closure}
-    parent_clause1 = {impl FnOnce<(&'_ u32,)> for closure}<'_0>
-    parent_clause2 = {built_in impl Sized for (&'_ u32,)}
-    parent_clause3 = {built_in impl Tuple for (&'_ u32,)}
-    fn call_mut<'_0_1> = {impl FnMut<(&'_ u32,)> for closure}::call_mut<'_0, '_0_1>
+impl<'_0> "impl_FnMut_tuple_for_closure" FnMut<(&'_ u32,)> for closure {
+    proof ImpliedClause0: (closure: MetaSized) = {built_in impl MetaSized for closure}
+    proof ImpliedClause1: (closure: FnOnce<(&'_ u32,)>) = impl_FnOnce_tuple_for_closure<'_0>
+    proof ImpliedClause2: ((&'_ u32,): Sized) = {built_in impl Sized for (&'_ u32,)}
+    proof ImpliedClause3: ((&'_ u32,): Tuple) = {built_in impl Tuple for (&'_ u32,)}
+    fn call_mut<'_0_1> = impl_FnMut_tuple_for_closure::call_mut<'_0, '_0_1>
     non-dyn-compatible
 }
 
@@ -530,36 +533,36 @@ impl<'_0> FnMut<(&'_ u32,)> for closure {
 fn main()
 {
     let _0: (); // return
-    let a_1: [u32; 5 : usize]; // local
+    let a_1: [u32; 5usize]; // local
     let b_2: &'1 [u32]; // local
-    let _3: &'3 [u32; 5 : usize]; // anonymous local
-    let _4: &'4 [u32; 5 : usize]; // anonymous local
+    let _3: &'3 [u32; 5usize]; // anonymous local
+    let _4: &'4 [u32; 5usize]; // anonymous local
     let res_5: Result<usize, usize>[{built_in impl Sized for usize}, {built_in impl Sized for usize}]; // local
     let _6: &'5 [u32]; // anonymous local
-    let _7: &'6 [u32; 5 : usize]; // anonymous local
+    let _7: &'6 [u32; 5usize]; // anonymous local
     let _8: closure; // anonymous local
 
     bb0: {
         _0 = ();
         storage_live(a_1);
-        a_1 = [const 1 : u32, const 2 : u32, const 3 : u32, const 4 : u32, const 5 : u32];
+        a_1 = [const 1u32, const 2u32, const 3u32, const 4u32, const 5u32];
         storage_live(b_2);
         storage_live(_3);
         storage_live(_4);
         _4 = &a_1;
         _3 = &(*_4);
-        b_2 = unsize_cast<&'3 [u32; 5 : usize], &'7 [u32], 5 : usize>(move _3);
+        b_2 = unsize_cast<&'3 [u32; 5usize], &'7 [u32], 5usize>(move _3);
         storage_dead(_3);
         storage_dead(_4);
         storage_live(res_5);
         storage_live(_6);
         storage_live(_7);
         _7 = &a_1;
-        _6 = unsize_cast<&'6 [u32; 5 : usize], &'8 [u32], 5 : usize>(move _7);
+        _6 = unsize_cast<&'6 [u32; 5usize], &'8 [u32], 5usize>(move _7);
         storage_dead(_7);
         storage_live(_8);
         _8 = closure {  };
-        res_5 = binary_search_by<'9, u32, closure>[{built_in impl Sized for u32}, {built_in impl Sized for closure}, {impl FnMut<(&'_ u32,)> for closure}<'13>](move _6, move _8) -> bb2 (unwind: bb1);
+        res_5 = binary_search_by<'9, u32, closure>[{built_in impl Sized for u32}, {built_in impl Sized for closure}, impl_FnMut_tuple_for_closure<'13>](move _6, move _8) -> bb2 (unwind: bb1);
     }
 
     bb1: {
@@ -578,8 +581,8 @@ fn main()
 }
 
 // Full name: test_crate::main::closure::{impl Destruct for closure}
-impl Destruct for closure {
-    fn drop_in_place = {impl Destruct for closure}::drop_in_place
+impl "impl_Destruct_for_closure" Destruct for closure {
+    fn drop_in_place = impl_Destruct_for_closure::drop_in_place
     non-dyn-compatible
 }
 

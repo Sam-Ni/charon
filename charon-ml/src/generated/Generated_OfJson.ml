@@ -473,6 +473,9 @@ and constant_expr_kind_of_json (ctx : of_json_ctx) (js : json) :
     | `Assoc [ ("FnPtr", fn_ptr) ] ->
         let* fn_ptr = fn_ptr_of_json ctx fn_ptr in
         Ok (CFnPtr fn_ptr)
+    | `Assoc [ ("TypeId", type_id) ] ->
+        let* type_id = ty_of_json ctx type_id in
+        Ok (CTypeId type_id)
     | `Assoc [ ("PtrNoProvenance", ptr_no_provenance) ] ->
         let* ptr_no_provenance = big_int_of_json ctx ptr_no_provenance in
         Ok (CPtrNoProvenance ptr_no_provenance)
@@ -1108,9 +1111,10 @@ and region_param_of_json (ctx : of_json_ctx) (js : json) :
 and rvalue_of_json (ctx : of_json_ctx) (js : json) : (rvalue, string) result =
   combine_error_msgs js __FUNCTION__
     (match js with
-    | `Assoc [ ("Use", use) ] ->
-        let* use = operand_of_json ctx use in
-        Ok (Use use)
+    | `Assoc [ ("Use", `List [ x_0; x_1 ]) ] ->
+        let* x_0 = operand_of_json ctx x_0 in
+        let* x_1 = with_retag_of_json ctx x_1 in
+        Ok (Use (x_0, x_1))
     | `Assoc
         [
           ( "Ref",
@@ -1207,9 +1211,13 @@ and trait_assoc_ty_impl_of_json (ctx : of_json_ctx) (js : json) :
     (trait_assoc_ty_impl, string) result =
   combine_error_msgs js __FUNCTION__
     (match js with
-    | `Assoc [ ("value", value); ("implied_trait_refs", _) ] ->
+    | `Assoc [ ("value", value); ("implied_trait_refs", implied_trait_refs) ] ->
         let* value = ty_of_json ctx value in
-        Ok ({ value } : trait_assoc_ty_impl)
+        let* implied_trait_refs =
+          index_vec_of_json trait_clause_id_of_json trait_ref_of_json ctx
+            implied_trait_refs
+        in
+        Ok ({ value; implied_trait_refs } : trait_assoc_ty_impl)
     | _ -> Error "")
 
 and trait_clause_id_of_json (ctx : of_json_ctx) (js : json) :
@@ -1399,10 +1407,11 @@ and ty_kind_of_json (ctx : of_json_ctx) (js : json) : (ty_kind, string) result =
         let* x_0 = ty_of_json ctx x_0 in
         let* x_1 = ref_kind_of_json ctx x_1 in
         Ok (TRawPtr (x_0, x_1))
-    | `Assoc [ ("TraitType", `List [ x_0; x_1 ]) ] ->
+    | `Assoc [ ("TraitType", `List [ x_0; x_1; x_2 ]) ] ->
         let* x_0 = trait_ref_of_json ctx x_0 in
         let* x_1 = assoc_type_id_of_json ctx x_1 in
-        Ok (TTraitType (x_0, x_1))
+        let* x_2 = generic_args_of_json ctx x_2 in
+        Ok (TTraitType (x_0, x_1, x_2))
     | `Assoc [ ("DynTrait", dyn_trait) ] ->
         let* dyn_trait = dyn_predicate_of_json ctx dyn_trait in
         Ok (TDynTrait dyn_trait)
@@ -1539,6 +1548,14 @@ and variant_id_of_json (ctx : of_json_ctx) (js : json) :
   combine_error_msgs js __FUNCTION__
     (match js with
     | x -> VariantId.id_of_json ctx x
+    | _ -> Error "")
+
+and with_retag_of_json (ctx : of_json_ctx) (js : json) :
+    (with_retag, string) result =
+  combine_error_msgs js __FUNCTION__
+    (match js with
+    | `String "No" -> Ok NoRetag
+    | `String "Yes" -> Ok YesRetag
     | _ -> Error "")
 
 module Ullbc = struct
@@ -1949,6 +1966,7 @@ and attribute_of_json (ctx : of_json_ctx) (js : json) :
     | `Assoc [ ("VariantsSuffix", variants_suffix) ] ->
         let* variants_suffix = string_of_json ctx variants_suffix in
         Ok (AttrVariantsSuffix variants_suffix)
+    | `String "Transparent" -> Ok AttrTransparent
     | `Assoc [ ("DocComment", doc_comment) ] ->
         let* doc_comment = string_of_json ctx doc_comment in
         Ok (AttrDocComment doc_comment)

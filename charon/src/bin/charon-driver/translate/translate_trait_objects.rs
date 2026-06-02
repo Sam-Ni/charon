@@ -269,7 +269,7 @@ impl<'tcx> ItemTransCtx<'tcx, '_> {
         // Don't enqueue the vtable for translation by default. It will be enqueued if used in a
         // `dyn Trait`.
         let mut vtable_ref: TypeDeclRef =
-            self.translate_item_maybe_enqueue(span, enqueue, tref, TransItemSourceKind::VTable)?;
+            self.translate_item_maybe_enqueue(span, tref, TransItemSourceKind::VTable, enqueue)?;
         // Remove the `Self` type variable from the generic parameters.
         vtable_ref
             .generics
@@ -289,7 +289,7 @@ impl<'tcx> ItemTransCtx<'tcx, '_> {
 
     fn prepare_vtable_fields(
         &mut self,
-        trait_def: &hax::FullDef<'tcx>,
+        poly_trait_def: &hax::FullDef<'tcx>,
         trait_id: TraitDeclId,
         implied_predicates: &hax::GenericPredicates,
     ) -> Result<VTableData, Error> {
@@ -305,17 +305,16 @@ impl<'tcx> ItemTransCtx<'tcx, '_> {
         fields.push(TrVTableField::Drop);
 
         // Method fields.
-        if let hax::FullDefKind::Trait { items, .. } = trait_def.kind() {
+        if let hax::FullDefKind::Trait { items, .. } = poly_trait_def.kind() {
             for item in items {
                 let item_def_id = &item.def_id;
                 // This is ok because dyn-compatible methods don't have generics.
-                let item_def =
-                    self.hax_def(&trait_def.this().with_def_id(self.hax_state(), item_def_id))?;
+                let poly_item_def = self.poly_hax_def(item_def_id)?;
                 if let hax::FullDefKind::AssocFn {
                     sig,
                     vtable_sig: Some(_),
                     ..
-                } = item_def.kind()
+                } = poly_item_def.kind()
                 {
                     let id = self.translate_trait_method_id_no_enqueue(trait_id, item_def_id)?;
                     fields.push(TrVTableField::Method(id, sig.clone()));
@@ -356,7 +355,7 @@ impl<'tcx> ItemTransCtx<'tcx, '_> {
     fn assert_is_destruct(&self, tref: &hax::TraitRef) {
         assert!(
             tref.def_id
-                .as_rust_def_id()
+                .as_real_def_id()
                 .is_some_and(|id| self.tcx.is_lang_item(id, rustc_hir::LangItem::Destruct)),
             "unexpected non-dyn compatible supertrait: {:?}",
             tref.def_id
@@ -697,9 +696,9 @@ impl<'tcx> ItemTransCtx<'tcx, '_> {
         // ends up used in a vtable cast.
         let vtable_ref: GlobalDeclRef = self.translate_item_maybe_enqueue(
             span,
-            enqueue,
             impl_ref,
             TransItemSourceKind::VTableInstance(TraitImplSource::Normal),
+            enqueue,
         )?;
         Ok(Some(vtable_ref))
     }
@@ -780,7 +779,6 @@ impl<'tcx> ItemTransCtx<'tcx, '_> {
     fn add_method_to_vtable_value(
         &mut self,
         span: Span,
-        impl_def: &hax::FullDef<'tcx>,
         trait_id: TraitDeclId,
         item: &hax::ImplAssocItem,
     ) -> Result<Option<VtableMethodValue>, Error> {
@@ -794,16 +792,12 @@ impl<'tcx> ItemTransCtx<'tcx, '_> {
             return Ok(None);
         };
 
+        // The method is vtable safe so it has no generics, hence we can skip the binder.
         let vtable_value = match &item.value {
-            hax::ImplAssocItemValue::Provided {
-                def_id: item_def_id,
-                ..
-            } => {
-                // The method is vtable safe so it has no generics, hence we can reuse the impl
-                // generics -- the lifetime binder will be added as `Erased` in `translate_fn_ptr`.
-                let item_ref = impl_def.this().with_def_id(self.hax_state(), item_def_id);
+            Some(value) => {
+                let item_ref = &value.skip_binder.item;
                 let shim_ref =
-                    self.translate_fn_ptr(span, &item_ref, TransItemSourceKind::VTableMethod)?;
+                    self.translate_fn_ptr(span, item_ref, TransItemSourceKind::VTableMethod)?;
                 // In mono mode, we cannot get real types of shim functions by looking up the ones in `struct vtable`
                 // because they are erased function pointers.
                 // Therefore, below we compute real types that are used for casting.
@@ -813,10 +807,12 @@ impl<'tcx> ItemTransCtx<'tcx, '_> {
                     // and restore the orginal one after computing `method_ty`.
                     assert!(self.binding_levels.len() == 1);
                     let orginal_binding = self.binding_levels.pop();
-                    let def = self.poly_hax_def(&item_ref.def_id)?;
-                    self.translate_item_generics(span, &def, &TransItemSourceKind::VTableMethod)?;
-
-                    let assoc_fun_def = self.hax_def(&item_ref)?;
+                    let assoc_fun_def = self.hax_def(item_ref)?;
+                    self.translate_item_generics(
+                        span,
+                        &assoc_fun_def,
+                        &TransItemSourceKind::VTableMethod,
+                    )?;
                     let vtable_sig = match assoc_fun_def.kind() {
                         hax::FullDefKind::AssocFn {
                             vtable_sig: Some(vtable_sig),
@@ -838,7 +834,7 @@ impl<'tcx> ItemTransCtx<'tcx, '_> {
                         self.binding_levels.push(binding_level);
                     }
 
-                    let method_id = self.translate_trait_method_id(trait_id, item.def_id())?;
+                    let method_id = self.translate_trait_method_id(trait_id, item.decl_def_id())?;
                     let method_name = self.translated.assoc_item_name(trait_id, method_id);
 
                     VtableMethodValue::Cast((method_name.to_string(), method_ty, shim_ref))
@@ -846,10 +842,9 @@ impl<'tcx> ItemTransCtx<'tcx, '_> {
                     VtableMethodValue::Const(ConstantExprKind::FnDef(shim_ref))
                 }
             }
-            hax::ImplAssocItemValue::DefaultedFn { .. } => VtableMethodValue::Const(
-                ConstantExprKind::Opaque("shim for default methods aren't yet supported".into()),
-            ),
-            _ => return Ok(None),
+            None => VtableMethodValue::Const(ConstantExprKind::Opaque(
+                "shim for default methods aren't yet supported".into(),
+            )),
         };
 
         Ok(Some(vtable_value))
@@ -898,7 +893,7 @@ impl<'tcx> ItemTransCtx<'tcx, '_> {
         let ret_ty = Ty::new(TyKind::Adt(vtable_struct_ref.clone()));
         let ret_place = builder.new_var(Some("ret".into()), ret_ty.clone());
 
-        let vtable_data = self.prepare_vtable_fields(&trait_def, trait_id, implied_preds)?;
+        let vtable_data = self.prepare_vtable_fields(&poly_trait_def, trait_id, implied_preds)?;
         // Retrieve the expected field types from the struct definition. This avoids complicated
         // substitutions.
         let field_tys = {
@@ -957,10 +952,13 @@ impl<'tcx> ItemTransCtx<'tcx, '_> {
             // ```
             let mut mk_cast = |(method_name, method_ty, method_shim): (String, Ty, FnPtr)| {
                 let method_local = builder.new_var(Some(method_name.clone()), method_ty.clone());
-                let shim = Rvalue::Use(Operand::Const(Box::new(ConstantExpr {
-                    kind: ConstantExprKind::FnDef(method_shim.clone()),
-                    ty: method_ty.clone(),
-                })));
+                let shim = Rvalue::Use(
+                    Operand::Const(Box::new(ConstantExpr {
+                        kind: ConstantExprKind::FnDef(method_shim.clone()),
+                        ty: method_ty.clone(),
+                    })),
+                    WithRetag::No,
+                );
                 let cast_local = builder.new_var(
                     Some("erased_".to_string() + method_name.as_str()),
                     ty.clone(),
@@ -1031,9 +1029,7 @@ impl<'tcx> ItemTransCtx<'tcx, '_> {
                     // Bit of a hack: we know the methods are in the right order. This is easier
                     // than trying to index into the items list by name.
                     for item in items_iter.by_ref() {
-                        if let Some(kind) =
-                            self.add_method_to_vtable_value(span, impl_def, trait_id, item)?
-                        {
+                        if let Some(kind) = self.add_method_to_vtable_value(span, trait_id, item)? {
                             match kind {
                                 VtableMethodValue::Const(const_kind) => {
                                     break 'a mk_const(const_kind);

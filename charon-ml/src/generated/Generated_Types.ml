@@ -433,6 +433,7 @@ and constant_expr_kind =
           that function item.
 
           We eliminate this case in a micro-pass. *)
+  | CTypeId of ty  (** The [TypeId] value for a type. *)
   | CPtrNoProvenance of big_int
       (** A pointer with no provenance (e.g. 0 for the null pointer)
 
@@ -583,7 +584,12 @@ and region_param = {
 }
 
 (** The value of a trait associated type. *)
-and trait_assoc_ty_impl = { value : ty }
+and trait_assoc_ty_impl = {
+  value : ty;
+  implied_trait_refs : trait_ref list;
+      (** This matches the corresponding vector in [TraitAssocTy]. In the same
+          way, this is empty after the [lift_associated_item_clauses] pass. *)
+}
 
 (** A predicate of the form [Type: Trait<Args>].
 
@@ -765,7 +771,7 @@ and ty_kind =
           eventually disappears from the AST. *)
   | TRef of region * ty * ref_kind  (** A borrow *)
   | TRawPtr of ty * ref_kind  (** A raw pointer. *)
-  | TTraitType of trait_ref * assoc_type_id
+  | TTraitType of trait_ref * assoc_type_id * generic_args
       (** A trait associated type
 
           Ex.:

@@ -64,11 +64,11 @@ let pp_big_int (fmt : Format.formatter) (bi : big_int) : unit =
   pp_string fmt (Z.to_string bi)
 
 let pp_scalar_value (fmt : Format.formatter) (sv : scalar_value) : unit =
-  Format.fprintf fmt "%a : %a" pp_big_int (Scalars.get_val sv) pp_integer_type
+  Format.fprintf fmt "%a%a" pp_big_int (Scalars.get_val sv) pp_integer_type
     (Scalars.get_ty sv)
 
 let pp_float_value (fmt : Format.formatter) (fv : float_value) : unit =
-  Format.fprintf fmt "%s : %a" fv.float_value pp_float_type fv.float_ty
+  Format.fprintf fmt "%s%a" fv.float_value pp_float_type fv.float_ty
 
 let escape_string (s : string) : string =
   let buf = Buffer.create (String.length s) in
@@ -165,10 +165,13 @@ let const_generic_param_to_string (ty_to_string : ty -> string)
   "const " ^ v.name ^ " : " ^ ty_to_string v.ty
 
 let trait_clause_id_to_pretty_string (id : trait_clause_id) : string =
-  "@TraitClause" ^ TraitClauseId.to_string id
+  "TraitClause" ^ TraitClauseId.to_string id
+
+let trait_clause_id_format_as_implied (id : trait_clause_id) : string =
+  "ImpliedClause" ^ TraitClauseId.to_string id
 
 let trait_db_var_to_pretty_string (var : trait_db_var) : string =
-  "@TraitClause" ^ de_bruijn_var_to_pretty_string TraitClauseId.to_string var
+  "TraitClause" ^ de_bruijn_var_to_pretty_string TraitClauseId.to_string var
 
 let type_decl_id_to_pretty_string (id : type_decl_id) : string =
   "TypeDecl@" ^ TypeDeclId.to_string id
@@ -501,6 +504,7 @@ and pp_constant_expr (env : fmt_env) (fmt : Format.formatter)
       Format.fprintf fmt "&vtable_of(%a)" (pp_trait_ref env) trait_ref
   | CFnDef fn_ptr -> pp_fn_ptr env fmt fn_ptr
   | CFnPtr fn_ptr -> Format.fprintf fmt "fnptr(%a)" (pp_fn_ptr env) fn_ptr
+  | CTypeId ty -> Format.fprintf fmt "TypeId(%a)" (pp_ty env) ty
   | CRawMemory bytes ->
       Format.fprintf fmt "RawMemory(%a)" (pp_sep_list ", " (pp_byte env)) bytes
   | COpaque reason -> Format.fprintf fmt "Opaque(%s)" reason
@@ -577,12 +581,13 @@ and pp_ty (env : fmt_env) (fmt : Format.formatter) (ty : ty) : unit =
   | TLiteral lit_ty -> pp_literal_type fmt lit_ty
   | TPattern (ty, pat) ->
       Format.fprintf fmt "%a is %a" (pp_ty env) ty (pp_type_pattern env) pat
-  | TTraitType (trait_ref, type_id) ->
+  | TTraitType (trait_ref, type_id, generics) ->
       let type_name =
         GAstUtils.get_assoc_type_name env.crate
           trait_ref.trait_decl_ref.binder_value.id type_id
       in
-      Format.fprintf fmt "%a::%s" (pp_trait_ref env) trait_ref type_name
+      Format.fprintf fmt "%a::%s%a" (pp_trait_ref env) trait_ref type_name
+        (pp_generic_args env) generics
   | TRef (r, rty, ref_kind) -> (
       match ref_kind with
       | RMut ->
@@ -643,7 +648,7 @@ and dyn_trait_type_constraint_to_string (env : fmt_env)
     match tref.kind with
     | ParentClause (parent, clause_id) ->
         target_clause_and_path
-          (("parent_clause" ^ TraitClauseId.to_string clause_id) :: path)
+          (trait_clause_id_format_as_implied clause_id :: path)
           parent
     | Clause (Bound (_, clause_id)) | Clause (Free clause_id) ->
         Some (clause_id, List.rev path)
@@ -775,15 +780,15 @@ and pp_trait_ref_kind (env : fmt_env)
       pp_string fmt "}"
   | Clause id -> pp_string fmt (trait_db_var_to_string env id)
   | ParentClause (tref, clause_id) ->
-      Format.fprintf fmt "%a::parent_clause%s" (pp_trait_ref env) tref
-        (TraitClauseId.to_string clause_id)
+      Format.fprintf fmt "%a::%s" (pp_trait_ref env) tref
+        (trait_clause_id_format_as_implied clause_id)
   | ItemClause (tref, type_id, clause_id) ->
       let type_name =
         GAstUtils.get_assoc_type_name env.crate
           tref.trait_decl_ref.binder_value.id type_id
       in
-      Format.fprintf fmt "(%a::%s::[%s])" (pp_trait_ref env) tref type_name
-        (trait_clause_id_to_pretty_string clause_id)
+      Format.fprintf fmt "%a::%s::%s" (pp_trait_ref env) tref type_name
+        (trait_clause_id_format_as_implied clause_id)
   | Dyn -> pp_region_binder pp_trait_decl_ref env fmt (Option.get implements)
   | UnknownTrait msg -> Format.fprintf fmt "UNKNOWN(%s)" msg
 
@@ -807,6 +812,33 @@ and pp_trait_decl_ref_as_impl (env : fmt_env) (fmt : Format.formatter)
       Format.fprintf fmt "%a for %a" (pp_trait_decl_ref env)
         { tr with generics } (pp_ty env) self_ty
   | [] -> pp_trait_decl_ref env fmt tr
+
+and pp_trait_decl_ref_as_pred (env : fmt_env) (fmt : Format.formatter)
+    (tr : trait_decl_ref) : unit =
+  match tr.generics.types with
+  | self_ty :: types ->
+      let generics = { tr.generics with types } in
+      Format.fprintf fmt "%a: %a" (pp_ty env) self_ty (pp_trait_decl_ref env)
+        { tr with generics }
+  | [] -> pp_trait_decl_ref env fmt tr
+
+and pp_poly_trait_decl_ref_as_pred (env : fmt_env) (fmt : Format.formatter)
+    (tr : trait_decl_ref region_binder) : unit =
+  pp_region_binder
+    (fun env fmt tr ->
+      Format.fprintf fmt "(%a)" (pp_trait_decl_ref_as_pred env) tr)
+    env fmt tr
+
+and pp_trait_proof (env : fmt_env) (fmt : Format.formatter)
+    (clause_id : trait_clause_id) (trait_ : trait_decl_ref region_binder)
+    (value : trait_ref option) : unit =
+  Format.fprintf fmt "proof %s: %a"
+    (trait_clause_id_format_as_implied clause_id)
+    (pp_poly_trait_decl_ref_as_pred env)
+    trait_;
+  match value with
+  | None -> ()
+  | Some value -> Format.fprintf fmt " = %a" (pp_trait_ref env) value
 
 and pp_impl_elem (env : fmt_env) (fmt : Format.formatter) (elem : impl_elem) :
     unit =
@@ -833,6 +865,12 @@ and pp_path_elem (env : fmt_env) (fmt : Format.formatter) (e : path_elem) : unit
       pp_string fmt s;
       if d <> Disambiguator.zero then
         Format.fprintf fmt "#%s" (Disambiguator.to_string d)
+  | PeImpl (ImplElemTrait impl_id) -> begin
+      match trait_impl_short_name env impl_id with
+      | Some short_name -> pp_string fmt short_name
+      | None ->
+          Format.fprintf fmt "{%a}" (pp_impl_elem env) (ImplElemTrait impl_id)
+    end
   | PeImpl impl -> Format.fprintf fmt "{%a}" (pp_impl_elem env) impl
   | PeInstantiated binder ->
       let anon_params =
@@ -866,6 +904,23 @@ and pp_name (env : fmt_env) (fmt : Format.formatter) (n : name) : unit =
 
 and name_to_string env n = pp_to_string (fun fmt -> pp_name env fmt n)
 
+and pp_full_path_elem (env : fmt_env) (fmt : Format.formatter) (e : path_elem) :
+    unit =
+  match e with
+  | PeImpl impl -> Format.fprintf fmt "{%a}" (pp_impl_elem env) impl
+  | _ -> pp_path_elem env fmt e
+
+and pp_full_name (env : fmt_env) (fmt : Format.formatter) (n : name) : unit =
+  let env = { env with generics = [] } in
+  pp_sep_list "::" (pp_full_path_elem env) fmt n
+
+and full_name_to_string env n = pp_to_string (fun fmt -> pp_full_name env fmt n)
+
+and trait_impl_short_name (env : fmt_env) (id : trait_impl_id) : string option =
+  match has_short_name env (IdTraitImpl id) with
+  | Some (PeIdent _ :: _ as name) -> Some (name_to_string env name)
+  | _ -> None
+
 and pp_raw_attribute (fmt : Format.formatter) (attr : raw_attribute) : unit =
   pp_string fmt attr.path;
   Option.iter (fun args -> Format.fprintf fmt "(%s)" args) attr.args
@@ -873,8 +928,8 @@ and pp_raw_attribute (fmt : Format.formatter) (attr : raw_attribute) : unit =
 and pp_trait_param (env : fmt_env) (fmt : Format.formatter)
     (clause : trait_param) : unit =
   let clause_id = trait_clause_id_to_string_for_env env clause.clause_id in
-  Format.fprintf fmt "[%s]: %a" clause_id
-    (pp_region_binder pp_trait_decl_ref env)
+  Format.fprintf fmt "%s: %a" clause_id
+    (pp_poly_trait_decl_ref_as_pred env)
     clause.trait
 
 and trait_param_to_string env clause =
@@ -954,6 +1009,39 @@ let pp_trait_type_constraint (env : fmt_env) (fmt : Format.formatter)
 let trait_type_constraint_to_string env ttc =
   pp_to_string (fun fmt -> pp_trait_type_constraint env fmt ttc)
 
+let generic_clauses_to_strings (env : fmt_env) (generics : generic_params) :
+    string list =
+  let _, trait_clauses = generic_params_to_strings env generics in
+  let regions_outlive =
+    let outlive_to_string env (x, y) =
+      region_to_string env x ^ ": " ^ region_to_string env y
+    in
+    List.mapi
+      (fun i rb ->
+        "RegionOutlives" ^ string_of_int i ^ ": "
+        ^ region_binder_to_string outlive_to_string env rb)
+      generics.regions_outlive
+  in
+  let types_outlive =
+    let outlive_to_string env (x, y) =
+      ty_to_string env x ^ ": " ^ region_to_string env y
+    in
+    List.mapi
+      (fun i rb ->
+        "TypeOutlives" ^ string_of_int i ^ ": "
+        ^ region_binder_to_string outlive_to_string env rb)
+      generics.types_outlive
+  in
+  let trait_type_constraints =
+    List.mapi
+      (fun i rb ->
+        "TypeConstraint" ^ string_of_int i ^ ": "
+        ^ region_binder_to_string trait_type_constraint_to_string env rb)
+      generics.trait_type_constraints
+  in
+  List.concat
+    [ trait_clauses; types_outlive; regions_outlive; trait_type_constraints ]
+
 (** Helper to format "where" clauses *)
 let pp_clauses (indent : string) (indent_incr : string) (fmt : Format.formatter)
     (clauses : string list) : unit =
@@ -969,74 +1057,34 @@ let pp_clauses (indent : string) (indent_incr : string) (fmt : Format.formatter)
 let clauses_to_string indent indent_incr clauses =
   pp_to_string (fun fmt -> pp_clauses indent indent_incr fmt clauses)
 
+let pp_assoc_ty_clauses (indent : string) (indent_incr : string)
+    (fmt : Format.formatter) (clauses : string list) : unit =
+  match clauses with
+  | [] -> ()
+  | clauses ->
+      Format.fprintf fmt "\n%swhere" indent;
+      List.iteri
+        (fun i clause ->
+          let sep = if i + 1 = List.length clauses then ";" else "," in
+          Format.fprintf fmt "\n%s%s%s" (indent ^ indent_incr) clause sep)
+        clauses
+
+let assoc_ty_clauses_to_string indent indent_incr clauses =
+  pp_to_string (fun fmt -> pp_assoc_ty_clauses indent indent_incr fmt clauses)
+
 (** Helper to format "where" clauses *)
 let predicates_and_trait_clauses_to_string (env : fmt_env) (indent : string)
     (indent_incr : string) (generics : generic_params) : string list * string =
-  let params, trait_clauses = generic_params_to_strings env generics in
-  let regions_outlive =
-    let outlive_to_string env (x, y) =
-      region_to_string env x ^ " : " ^ region_to_string env y
-    in
-    List.map
-      (region_binder_to_string outlive_to_string env)
-      generics.regions_outlive
-  in
-  let types_outlive =
-    let outlive_to_string env (x, y) =
-      ty_to_string env x ^ " : " ^ region_to_string env y
-    in
-    List.map
-      (region_binder_to_string outlive_to_string env)
-      generics.types_outlive
-  in
-  let trait_type_constraints =
-    List.map
-      (region_binder_to_string trait_type_constraint_to_string env)
-      generics.trait_type_constraints
-  in
+  let params, _ = generic_params_to_strings env generics in
+  let clauses = generic_clauses_to_strings env generics in
   (* Split between the inherited clauses and the local clauses *)
-  let clauses =
-    clauses_to_string indent indent_incr
-      (List.concat
-         [
-           trait_clauses; types_outlive; regions_outlive; trait_type_constraints;
-         ])
-  in
+  let clauses = clauses_to_string indent indent_incr clauses in
   (params, clauses)
 
 let pp_generic_params_single_line (env : fmt_env) (fmt : Format.formatter)
     (generics : generic_params) : unit =
-  let params, trait_clauses = generic_params_to_strings env generics in
-  let regions_outlive =
-    List.map
-      (region_binder_to_string
-         (fun env (x, y) ->
-           region_to_string env x ^ " : " ^ region_to_string env y)
-         env)
-      generics.regions_outlive
-  in
-  let types_outlive =
-    List.map
-      (region_binder_to_string
-         (fun env (x, y) -> ty_to_string env x ^ " : " ^ region_to_string env y)
-         env)
-      generics.types_outlive
-  in
-  let trait_type_constraints =
-    List.map
-      (region_binder_to_string trait_type_constraint_to_string env)
-      generics.trait_type_constraints
-  in
-  let all =
-    List.concat
-      [
-        params;
-        trait_clauses;
-        types_outlive;
-        regions_outlive;
-        trait_type_constraints;
-      ]
-  in
+  let params, _ = generic_params_to_strings env generics in
+  let all = params @ generic_clauses_to_strings env generics in
   if all <> [] then Format.fprintf fmt "<%a>" (pp_sep_list ", " pp_string) all
 
 let generic_params_to_string_single_line env generics =
@@ -1044,7 +1092,7 @@ let generic_params_to_string_single_line env generics =
 
 let pp_item_intro (env : fmt_env) (indent : string) (keyword : string)
     (id : item_id) (fmt : Format.formatter) (meta : item_meta) : unit =
-  let full_name = name_to_string env meta.name in
+  let full_name = full_name_to_string env meta.name in
   let name, full_name_comment =
     match has_short_name env id with
     | Some short_name ->
@@ -1331,7 +1379,7 @@ and pp_aggregate (env : fmt_env) (agg : aggregate_kind) (fmt : Format.formatter)
 
 and pp_rvalue (env : fmt_env) (fmt : Format.formatter) (rv : rvalue) : unit =
   match rv with
-  | Use op -> pp_operand env fmt op
+  | Use (op, _) -> pp_operand env fmt op
   | RvRef (p, bk, op) -> begin
       let p = place_to_string env p in
       let borrow_kind =
@@ -1536,9 +1584,10 @@ let pp_trait_decl (env : fmt_env) (indent : string) (indent_incr : string)
     pp_string fmt "\n{\n";
     List.iter
       (fun clause ->
-        Format.fprintf fmt "%sparent_clause%s : %s\n" indent1
-          (TraitClauseId.to_string clause.clause_id)
-          (trait_param_to_string env clause))
+        Format.fprintf fmt "%s%a\n" indent1
+          (fun fmt clause ->
+            pp_trait_proof env fmt clause.clause_id clause.trait None)
+          clause)
       def.implied_clauses;
     List.iter
       (fun (c : trait_assoc_const) ->
@@ -1549,20 +1598,27 @@ let pp_trait_decl (env : fmt_env) (indent : string) (indent_incr : string)
       (fun (bound_ty : trait_assoc_ty binder) ->
         let env = fmt_env_push_generics_and_preds env bound_ty.binder_params in
         let params =
-          generic_params_to_string_single_line env bound_ty.binder_params
+          let params, _ =
+            generic_params_to_strings env bound_ty.binder_params
+          in
+          if params = [] then "" else "<" ^ String.concat ", " params ^ ">"
         in
         Format.fprintf fmt "%stype %s%s" indent1 bound_ty.binder_value.name
           params;
-        if bound_ty.binder_value.implied_clauses <> [] then (
-          Format.fprintf fmt "\n%swhere\n" indent1;
-          List.iter
-            (fun c ->
-              Format.fprintf fmt "%simplied_clause_%s : %s\n"
-                (indent1 ^ indent_incr)
-                (TraitClauseId.to_string c.clause_id)
-                (trait_param_to_string env c))
-            bound_ty.binder_value.implied_clauses);
-        pp_string fmt "\n")
+        Option.iter
+          (fun default ->
+            Format.fprintf fmt " = %s" (ty_to_string env default.value))
+          bound_ty.binder_value.default;
+        let clauses =
+          generic_clauses_to_strings env bound_ty.binder_params
+          @ List.map
+              (fun c ->
+                pp_to_string (fun fmt ->
+                    pp_trait_proof env fmt c.clause_id c.trait None))
+              bound_ty.binder_value.implied_clauses
+        in
+        Format.fprintf fmt "%s\n"
+          (assoc_ty_clauses_to_string indent1 indent_incr clauses))
       types;
     List.iter
       (fun (m : trait_method binder) ->
@@ -1581,7 +1637,7 @@ let pp_trait_decl (env : fmt_env) (indent : string) (indent_incr : string)
 let pp_trait_impl (env : fmt_env) (indent : string) (indent_incr : string)
     (fmt : Format.formatter) (def : trait_impl) : unit =
   Format.fprintf fmt "%s// Full name: %s\n" indent
-    (name_to_string env def.item_meta.name);
+    (full_name_to_string env def.item_meta.name);
   let env = fmt_env_replace_generics_and_preds env def.generics in
   let params, clauses =
     predicates_and_trait_clauses_to_string env indent indent_incr def.generics
@@ -1589,17 +1645,25 @@ let pp_trait_impl (env : fmt_env) (indent : string) (indent_incr : string)
   let params =
     if params = [] then "" else "<" ^ String.concat ", " params ^ ">"
   in
+  let short_name =
+    match trait_impl_short_name env def.def_id with
+    | Some short_name -> " \"" ^ short_name ^ "\""
+    | None -> ""
+  in
   let indent1 = indent ^ indent_incr in
   let trait_id = def.impl_trait.id in
-  Format.fprintf fmt "%simpl%s %a%s" indent params
+  Format.fprintf fmt "%simpl%s%s %a%s" indent params short_name
     (pp_trait_decl_ref_as_impl env)
     def.impl_trait clauses;
   pp_string fmt (if clauses = "" then " {" else "\n{");
   pp_string fmt "\n";
   List.iteri
     (fun i trait_ref ->
-      Format.fprintf fmt "%sparent_clause%s = %s\n" indent1 (string_of_int i)
-        (trait_ref_to_string env trait_ref))
+      Format.fprintf fmt "%s%a\n" indent1
+        (fun fmt (clause_id, trait_ref) ->
+          pp_trait_proof env fmt clause_id trait_ref.trait_decl_ref
+            (Some trait_ref))
+        (TraitClauseId.of_int i, trait_ref))
     def.implied_trait_refs;
   AssocConstId.Map.to_list def.consts
   |> List.iter (fun (const_id, gref) ->
@@ -1609,14 +1673,27 @@ let pp_trait_impl (env : fmt_env) (indent : string) (indent_incr : string)
          Format.fprintf fmt "%sconst %s = %a\n" indent1 name
            (pp_global_decl_ref env) gref);
   AssocTypeId.Map.to_list def.types
-  |> List.iter (fun (type_id, bound_ty) ->
+  |> List.iter (fun (type_id, (bound_ty : trait_assoc_ty_impl binder)) ->
          let name = GAstUtils.get_assoc_type_name env.crate trait_id type_id in
          let env = fmt_env_push_generics_and_preds env bound_ty.binder_params in
          let params =
-           generic_params_to_string_single_line env bound_ty.binder_params
+           let params, _ =
+             generic_params_to_strings env bound_ty.binder_params
+           in
+           if params = [] then "" else "<" ^ String.concat ", " params ^ ">"
          in
-         Format.fprintf fmt "%stype %s%s = %s\n" indent1 name params
-           (ty_to_string env bound_ty.binder_value.value));
+         let clauses =
+           generic_clauses_to_strings env bound_ty.binder_params
+           @ List.mapi
+               (fun i trait_ref ->
+                 pp_to_string (fun fmt ->
+                     pp_trait_proof env fmt (TraitClauseId.of_int i)
+                       trait_ref.trait_decl_ref (Some trait_ref)))
+               bound_ty.binder_value.implied_trait_refs
+         in
+         Format.fprintf fmt "%stype %s%s = %s%s\n" indent1 name params
+           (ty_to_string env bound_ty.binder_value.value)
+           (assoc_ty_clauses_to_string indent1 indent_incr clauses));
   TraitMethodId.Map.to_list def.methods
   |> List.iter (fun (method_id, (f : fun_decl_ref binder)) ->
          let name = GAstUtils.get_method_name env.crate trait_id method_id in

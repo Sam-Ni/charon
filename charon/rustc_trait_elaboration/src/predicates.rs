@@ -31,7 +31,7 @@ use std::collections::HashSet;
 
 use rustc_hir::LangItem;
 use rustc_hir::def::DefKind;
-use rustc_middle::ty::*;
+use rustc_middle::ty::{self, *};
 use rustc_span::def_id::DefId;
 use rustc_span::{DUMMY_SP, Span};
 
@@ -212,10 +212,10 @@ impl<'tcx> ItemPredicates<'tcx> {
             let options = elab_ctx.bounds_options();
             let def_kind = tcx.def_kind(def_id);
             let mut predicates = match def_kind {
-                AssocConst
+                AssocConst { .. }
                 | AssocFn
                 | AssocTy
-                | Const
+                | Const { .. }
                 | Enum
                 | Fn
                 | ForeignTy
@@ -386,6 +386,16 @@ impl<'tcx> ItemPredicates<'tcx> {
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut ItemPredicate<'tcx>> {
         self.predicates.iter_mut()
     }
+
+    /// Substitute all the predicates with these args.
+    pub fn instantiate(mut self, tcx: TyCtxt<'tcx>, args: ty::GenericArgsRef<'tcx>) -> Self {
+        for predicate in self.iter_mut() {
+            predicate.clause = ty::EarlyBinder::bind(predicate.clause)
+                .instantiate(tcx, args)
+                .skip_norm_wip();
+        }
+        self
+    }
 }
 
 /// The special "self" predicate on a trait.
@@ -398,6 +408,13 @@ fn inherits_parent_clauses<'tcx>(tcx: TyCtxt<'tcx>, def_id: DefId) -> bool {
     use DefKind::*;
     matches!(
         tcx.def_kind(def_id),
-        AnonConst | AssocConst | AssocFn | AssocTy | Closure | Ctor(..) | InlineConst | Variant
+        AnonConst
+            | AssocConst { .. }
+            | AssocFn
+            | AssocTy
+            | Closure
+            | Ctor(..)
+            | InlineConst
+            | Variant
     )
 }

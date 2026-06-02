@@ -170,7 +170,7 @@ impl<'tcx> ItemTransCtx<'tcx, '_> {
                 let ret = bb.new_var(None, c.ty.clone());
                 bb.push_statement(StatementKind::Assign(
                     ret,
-                    Rvalue::Use(Operand::Const(Box::new(c))),
+                    Rvalue::Use(Operand::Const(Box::new(c)), WithRetag::No),
                 ));
                 Ok(Body::Unstructured(bb.build()))
             } else {
@@ -461,6 +461,29 @@ impl<'tcx> ItemTransCtx<'tcx, '_> {
         };
 
         Ok(Body::Unstructured(body))
+    }
+
+    /// Generate a function body for `core::intrinsics::type_id`.
+    pub(crate) fn build_type_id_body(
+        &mut self,
+        span: Span,
+        def: &hax::FullDef<'tcx>,
+        signature: &FunSig,
+    ) -> Result<Body, Error> {
+        let generics = self.translate_generic_args(span, &def.this().generic_args, &[])?;
+        let type_id_ty = generics.types[0].clone();
+
+        let mut builder = BodyBuilder::new(span, signature.inputs.len());
+        let return_place = builder.new_var(Some("ret".to_string()), signature.output.clone());
+        let type_id = ConstantExpr {
+            kind: ConstantExprKind::TypeId(type_id_ty),
+            ty: signature.output.clone(),
+        };
+        builder.push_statement(StatementKind::Assign(
+            return_place,
+            Rvalue::Use(Operand::Const(Box::new(type_id)), WithRetag::No),
+        ));
+        Ok(Body::Unstructured(builder.build()))
     }
 }
 
@@ -917,12 +940,18 @@ impl<'tcx> BlockTransCtx<'tcx, '_, '_, '_> {
         tgt_ty: &Ty,
     ) -> Result<Rvalue, Error> {
         match rvalue {
-            mir::Rvalue::Use(operand) => Ok(Rvalue::Use(self.translate_operand(span, operand)?)),
+            mir::Rvalue::Use(operand, retag) => {
+                let retag = match retag {
+                    mir::WithRetag::Yes => WithRetag::Yes,
+                    mir::WithRetag::No => WithRetag::No,
+                };
+                Ok(Rvalue::Use(self.translate_operand(span, operand)?, retag))
+            }
             mir::Rvalue::CopyForDeref(place) => {
                 // According to the documentation, it seems to be an optimisation
                 // for drop elaboration. We treat it as a regular copy.
                 let place = self.translate_place(span, place)?;
-                Ok(Rvalue::Use(Operand::Copy(place)))
+                Ok(Rvalue::Use(Operand::Copy(place), WithRetag::No))
             }
             mir::Rvalue::Repeat(operand, cnst) => {
                 let c = self.translate_ty_constant_expr(span, cnst)?;
@@ -1037,9 +1066,12 @@ impl<'tcx> BlockTransCtx<'tcx, '_, '_, '_> {
                     mir::UnOp::Neg => UnOp::Neg(OverflowMode::Wrap),
                     mir::UnOp::PtrMetadata => match operand {
                         Operand::Copy(p) | Operand::Move(p) => {
-                            return Ok(Rvalue::Use(Operand::Copy(
-                                p.project(ProjectionElem::PtrMetadata, tgt_ty.clone()),
-                            )));
+                            return Ok(Rvalue::Use(
+                                Operand::Copy(
+                                    p.project(ProjectionElem::PtrMetadata, tgt_ty.clone()),
+                                ),
+                                WithRetag::No,
+                            ));
                         }
                         Operand::Const(_) => {
                             panic!("unexpected metadata operand")
@@ -1100,7 +1132,7 @@ impl<'tcx> BlockTransCtx<'tcx, '_, '_, '_> {
                         use ty::AdtKind;
                         trace!("{:?}", rvalue);
 
-                        let adt_kind = self.tcx.adt_def(def_id).adt_kind();
+                        let adt_kind = self.tcx.adt_def(*def_id).adt_kind();
                         let item = hax::translate_item_ref(&self.hax_state, *def_id, generics);
                         let tref = self.translate_type_decl_ref(span, &item)?;
                         let variant_id = match adt_kind {
@@ -1146,6 +1178,13 @@ impl<'tcx> BlockTransCtx<'tcx, '_, '_, '_> {
                     self,
                     span,
                     "charon does not support unsafe lifetime binders"
+                );
+            }
+            mir::Rvalue::Reborrow(..) => {
+                raise_error!(
+                    self,
+                    span,
+                    "charon does not support reborrow rvalues (for Reborrow traits)"
                 );
             }
         }
@@ -1216,8 +1255,6 @@ impl<'tcx> BlockTransCtx<'tcx, '_, '_, '_> {
                     Some(StatementKind::PlaceMention(place))
                 }
             }
-            // This is for the stacked borrows memory model.
-            mir::StatementKind::Retag(_, _) => None,
             // These two are only there to make borrow-checking accept less code, and are removed
             // in later MIRs.
             mir::StatementKind::FakeRead(..) => None,
@@ -1287,7 +1324,6 @@ impl<'tcx> BlockTransCtx<'tcx, '_, '_, '_> {
                 destination,
                 target,
                 unwind,
-                fn_span: _,
                 ..
             } => self.translate_function_call(span, func, args, destination, target, unwind)?,
             TerminatorKind::Assert {

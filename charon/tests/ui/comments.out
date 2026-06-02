@@ -8,7 +8,7 @@ pub trait MetaSized<Self>
 #[lang_item("sized")]
 pub trait Sized<Self>
 {
-    parent_clause0 : [@TraitClause0]: MetaSized<Self>
+    proof ImpliedClause0: (Self: MetaSized)
     non-dyn-compatible
 }
 
@@ -16,7 +16,7 @@ pub trait Sized<Self>
 #[lang_item("Default")]
 pub trait Default<Self>
 {
-    parent_clause0 : [@TraitClause0]: Sized<Self>
+    proof ImpliedClause0: (Self: Sized)
     fn default = core::default::Default::default<Self>[Self]
     non-dyn-compatible
 }
@@ -24,11 +24,11 @@ pub trait Default<Self>
 #[lang_item("default_fn")]
 pub fn core::default::Default::default<Self>() -> Self
 where
-    [@TraitClause0]: Default<Self>,
+    TraitClause0: (Self: Default),
 = <opaque>
 
 // Full name: core::default::{impl Default for u32}::default
-pub fn {impl Default for u32}::default() -> u32
+pub fn impl_Default_for_u32::default() -> u32
 = <opaque>
 
 // Full name: core::fmt::Arguments
@@ -51,7 +51,7 @@ unsafe fn drop_in_place<Self>(_1: *mut Self)
 #[lang_item("Option")]
 pub enum Option<T>
 where
-    [@TraitClause0]: Sized<T>,
+    TraitClause0: (T: Sized),
 {
   None,
   Some(T),
@@ -68,7 +68,7 @@ pub enum AssertKind {
 #[lang_item("slice_len_fn")]
 pub fn len<'_0, T>(_1: &'_0 [T]) -> usize
 where
-    [@TraitClause0]: Sized<T>,
+    TraitClause0: (T: Sized),
 = <opaque>
 
 // Full name: test_crate::function_call
@@ -120,18 +120,18 @@ pub fn sum<'_0>(s_1: &'_0 [u32]) -> u32
     storage_live(_24)
     storage_live(sum_2)
     // `let sum`
-    sum_2 = const 0 : u32
+    sum_2 = const 0u32
     storage_live(i_3)
     // `let i`
     //  indented sub-comment
     // unindented sub-comment
-    i_3 = const 0 : usize
+    i_3 = const 0usize
     storage_live(_4)
     storage_live(_5)
     storage_live(_6)
     // Function call
     _6 = copy sum_2
-    _7 = copy _6 panic.+ const 2 : u32
+    _7 = copy _6 panic.+ const 2u32
     _5 = move _7
     storage_dead(_6)
     _4 = function_call(move _5)
@@ -168,7 +168,7 @@ pub fn sum<'_0>(s_1: &'_0 [u32]) -> u32
         storage_dead(_12)
         storage_dead(_13)
         // Increment `i`
-        _15 = copy i_3 panic.+ const 1 : usize
+        _15 = copy i_3 panic.+ const 1usize
         i_3 = move _15
         // Before end of loop
         storage_dead(_8)
@@ -182,13 +182,13 @@ pub fn sum<'_0>(s_1: &'_0 [u32]) -> u32
     storage_live(_18)
     // Assign the result of an `if`.
     _18 = copy sum_2
-    _17 = move _18 > const 10 : u32
+    _17 = move _18 > const 10u32
     if move _17 {
         storage_dead(_18)
         storage_live(_19)
         // sum + 100
         _19 = copy sum_2
-        _20 = copy _19 panic.+ const 100 : u32
+        _20 = copy _19 panic.+ const 100u32
         _16 = move _20
         storage_dead(_19)
     } else {
@@ -204,7 +204,7 @@ pub fn sum<'_0>(s_1: &'_0 [u32]) -> u32
     storage_live(_23)
     // Function call
     _23 = copy sum_2
-    _24 = copy _23 panic.+ const 2 : u32
+    _24 = copy _23 panic.+ const 2u32
     _22 = move _24
     storage_dead(_23)
     _21 = function_call(move _22)
@@ -224,16 +224,16 @@ struct Foo {
 }
 
 // Full name: test_crate::{impl Default for Foo}::default
-pub fn {impl Default for Foo}::default() -> Foo
+pub fn impl_Default_for_Foo::default() -> Foo
 {
     let _0: Foo; // return
     let _1: u32; // anonymous local
     let _2: u32; // anonymous local
 
     storage_live(_1)
-    _1 = {impl Default for u32}::default()
+    _1 = impl_Default_for_u32::default()
     storage_live(_2)
-    _2 = {impl Default for u32}::default()
+    _2 = impl_Default_for_u32::default()
     _0 = Foo { x: move _1, y: move _2 }
     storage_dead(_2)
     storage_dead(_1)
@@ -241,9 +241,9 @@ pub fn {impl Default for Foo}::default() -> Foo
 }
 
 // Full name: test_crate::{impl Default for Foo}
-impl Default for Foo {
-    parent_clause0 = {built_in impl Sized for Foo}
-    fn default = {impl Default for Foo}::default
+impl "impl_Default_for_Foo" Default for Foo {
+    proof ImpliedClause0: (Foo: Sized) = {built_in impl Sized for Foo}
+    fn default = impl_Default_for_Foo::default
     non-dyn-compatible
 }
 
@@ -254,16 +254,16 @@ struct Bar {
 }
 
 // Full name: test_crate::{impl Default for Bar}::default
-pub fn {impl Default for Bar}::default() -> Bar
+pub fn impl_Default_for_Bar::default() -> Bar
 {
     let _0: Bar; // return
     let _1: u32; // anonymous local
     let _2: u32; // anonymous local
 
     storage_live(_1)
-    _1 = {impl Default for u32}::default()
+    _1 = impl_Default_for_u32::default()
     storage_live(_2)
-    _2 = {impl Default for u32}::default()
+    _2 = impl_Default_for_u32::default()
     _0 = Bar { x: move _1, super_long_field_name: move _2 }
     storage_dead(_2)
     storage_dead(_1)
@@ -271,16 +271,16 @@ pub fn {impl Default for Bar}::default() -> Bar
 }
 
 // Full name: test_crate::{impl Default for Bar}
-impl Default for Bar {
-    parent_clause0 = {built_in impl Sized for Bar}
-    fn default = {impl Default for Bar}::default
+impl "impl_Default_for_Bar" Default for Bar {
+    proof ImpliedClause0: (Bar: Sized) = {built_in impl Sized for Bar}
+    fn default = impl_Default_for_Bar::default
     non-dyn-compatible
 }
 
 // Full name: test_crate::eat
 fn eat<T>(_1: T)
 where
-    [@TraitClause0]: Sized<T>,
+    TraitClause0: (T: Sized),
 {
     let _0: (); // return
     let _1: T; // arg #1
@@ -309,7 +309,7 @@ fn foo()
     let _12: Bar; // anonymous local
     let _13: u32; // anonymous local
     let _14: u32; // anonymous local
-    let a_15: [u32; 10 : usize]; // local
+    let a_15: [u32; 10usize]; // local
     let _16: (&'3 u32, &'4 u32); // anonymous local
     let _17: &'5 u32; // anonymous local
     let _18: usize; // anonymous local
@@ -330,14 +330,14 @@ fn foo()
     let _33: &'23 u32; // anonymous local
     let _34: &'31 u32; // anonymous local
     let _35: u32; // anonymous local
-    let _36: &'_ [u32; 10 : usize]; // anonymous local
+    let _36: &'_ [u32; 10usize]; // anonymous local
     let _37: &'_ u32; // anonymous local
 
     storage_live(_32)
     _0 = ()
     storage_live(_3)
     // Call `default` and destructure the result
-    _3 = {impl Default for Foo}::default()
+    _3 = impl_Default_for_Foo::default()
     storage_live(x_1)
     x_1 = copy (_3).x
     storage_live(y_2)
@@ -359,7 +359,7 @@ fn foo()
     storage_live(_10)
     // Call `default` and destructure the result
     // This is the long field
-    _10 = {impl Default for Bar}::default()
+    _10 = impl_Default_for_Bar::default()
     storage_live(x_8)
     x_8 = copy (_10).x
     storage_live(super_long_field_name_9)
@@ -381,22 +381,22 @@ fn foo()
     storage_dead(_11)
     storage_live(a_15)
     // Build an array
-    a_15 = @ArrayRepeat<u32, 10 : usize>(const 0 : u32)
+    a_15 = @ArrayRepeat<u32, 10usize>(const 0u32)
     storage_live(_16)
     storage_live(_17)
     storage_live(_18)
     // `assert_eq`
-    _18 = const 9 : usize
+    _18 = const 9usize
     storage_live(_33)
     storage_live(_34)
     storage_live(_35)
-    _35 = const 9 : u32
+    _35 = const 9u32
     _34 = &_35
     _33 = move _34
     storage_live(_36)
     _36 = &a_15
     storage_live(_37)
-    _37 = @ArrayIndexShared<'_, u32, 10 : usize>(move _36, copy _18)
+    _37 = @ArrayIndexShared<'_, u32, 10usize>(move _36, copy _18)
     _17 = &(*_37)
     storage_live(_19)
     _32 = move _33
@@ -455,7 +455,7 @@ fn CONSTANT() -> u32
 {
     let _0: u32; // return
 
-    _0 = const 42 : u32
+    _0 = const 42u32
     return
 }
 
@@ -477,8 +477,8 @@ pub fn thing()
     storage_live(x_1)
     storage_live(_2)
     // This comment belongs above the assignment to `x` and not above intermediate computations.
-    _2 = copy CONSTANT panic.>> const 3 : i32
-    _3 = copy _2 panic.+ const 12 : u32
+    _2 = copy CONSTANT panic.>> const 3i32
+    _3 = copy _2 panic.+ const 12u32
     x_1 = move _3
     storage_dead(_2)
     storage_live(_4)

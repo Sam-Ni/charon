@@ -8,7 +8,7 @@ pub trait MetaSized<Self>
 #[lang_item("sized")]
 pub trait Sized<Self>
 {
-    parent_clause0 : [@TraitClause0]: MetaSized<Self>
+    proof ImpliedClause0: (Self: MetaSized)
     non-dyn-compatible
 }
 
@@ -16,7 +16,7 @@ pub trait Sized<Self>
 #[lang_item("Option")]
 pub enum Option<T>
 where
-    [@TraitClause0]: Sized<T>,
+    TraitClause0: (T: Sized),
 {
   None,
   Some(T),
@@ -75,7 +75,7 @@ fn foo(opt_1: Option<u32>[{built_in impl Sized for u32}])
             storage_live(_6)
             storage_live(_7)
             _7 = copy (*x_5)
-            _6 = move _7 >= const 42 : u32
+            _6 = move _7 >= const 42u32
             if move _6 {
                 storage_dead(_7)
                 storage_dead(_6)

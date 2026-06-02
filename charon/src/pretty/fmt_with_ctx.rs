@@ -12,7 +12,7 @@ use either::Either;
 use itertools::Itertools;
 use std::{
     borrow::Cow,
-    fmt::{self, Debug, Display, Write},
+    fmt::{self, Debug, Display},
 };
 
 pub struct WithCtx<'a, C, T: ?Sized> {
@@ -63,6 +63,27 @@ macro_rules! impl_debug_via_display {
             }
         }
     };
+}
+
+fn fmt_where_clauses<'a, I>(clauses: I, indent: &'a str) -> impl Display + 'a
+where
+    I: IntoIterator,
+    I::Item: Display,
+{
+    let clauses = clauses
+        .into_iter()
+        .map(|clause| clause.to_string())
+        .collect_vec();
+    std::fmt::from_fn(move |f| {
+        if !clauses.is_empty() {
+            write!(f, "\n{indent}where")?;
+            for (i, clause) in clauses.iter().enumerate() {
+                let sep = if i + 1 == clauses.len() { ";" } else { "," };
+                write!(f, "\n{indent}{TAB_INCR}{clause}{sep}")?;
+            }
+        }
+        Ok(())
+    })
 }
 
 //------- Impls, sorted by name --------
@@ -361,7 +382,7 @@ impl<C: AstFormatter> FmtWithCtx<C> for CastKind {
 
 impl<C: AstFormatter> FmtWithCtx<C> for ClauseDbVar {
     fn fmt_with_ctx(&self, ctx: &C, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        ctx.format_bound_var(f, *self, "@TraitClause", |_| None)
+        ctx.format_bound_var(f, *self, "TraitClause", |_| None)
     }
 }
 
@@ -435,7 +456,7 @@ impl<C: AstFormatter> FmtWithCtx<C> for DynPredicate {
                 loop {
                     match &tref.kind {
                         TraitRefKind::ParentClause(parent_trait_ref, clause_id) => {
-                            path.push(format!("parent_clause{clause_id}"));
+                            path.push(*clause_id);
                             tref = parent_trait_ref;
                         }
                         &TraitRefKind::Clause(DeBruijnVar::Bound(_, clause_id)) => {
@@ -446,7 +467,7 @@ impl<C: AstFormatter> FmtWithCtx<C> for DynPredicate {
                     }
                 }
                 let ty = cstr.ty.with_ctx(ctx);
-                let path_fmt = path.iter().format("::");
+                let path_fmt = path.iter().map(|id| id.format_as_implied()).format("::");
                 std::fmt::from_fn(|f| {
                     write!(f, "{path_fmt}")?;
                     if !path.is_empty() {
@@ -530,12 +551,8 @@ impl Display for FloatTy {
 impl Display for FloatValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::result::Result<(), fmt::Error> {
         let v = &self.value;
-        match self.ty {
-            FloatTy::F16 => write!(f, "{v} : f16"),
-            FloatTy::F32 => write!(f, "{v} : f32"),
-            FloatTy::F64 => write!(f, "{v} : f64"),
-            FloatTy::F128 => write!(f, "{v} : f128"),
-        }
+        let ty = self.ty;
+        write!(f, "{v}{ty}")
     }
 }
 
@@ -617,7 +634,7 @@ impl<C: AstFormatter> FmtWithCtx<C> for FunDecl {
                 .collect(),
         };
         let mut args: Vec<String> = Vec::new();
-        for (ty, name) in self.signature.inputs.iter().zip(arg_names.into_iter()) {
+        for (ty, name) in self.signature.inputs.iter().zip(arg_names) {
             args.push(format!("{}: {}", name, ty.with_ctx(ctx)));
         }
         let args = args.join(", ");
@@ -760,12 +777,20 @@ impl GenericParams {
         C: AstFormatter,
     {
         let trait_clauses = self.trait_clauses.iter().map(|x| x.to_string_with_ctx(ctx));
-        let types_outlive = self.types_outlive.iter().map(|x| x.fmt_as_for(ctx));
-        let regions_outlive = self.regions_outlive.iter().map(|x| x.fmt_as_for(ctx));
+        let types_outlive = self
+            .types_outlive
+            .iter()
+            .enumerate()
+            .map(|(i, x)| format!("TypeOutlives{i}: {}", x.fmt_as_for(ctx)));
+        let regions_outlive = self
+            .regions_outlive
+            .iter()
+            .enumerate()
+            .map(|(i, x)| format!("RegionOutlives{i}: {}", x.fmt_as_for(ctx)));
         let type_constraints = self
             .trait_type_constraints
-            .iter()
-            .map(|x| x.fmt_as_for(ctx));
+            .iter_enumerated()
+            .map(|(i, x)| format!("TypeConstraint{i}: {}", x.fmt_as_for(ctx)));
         trait_clauses.map(Either::Left).chain(
             types_outlive
                 .chain(regions_outlive)
@@ -826,6 +851,10 @@ impl<C: AstFormatter> FmtWithCtx<C> for GenericsSource {
         match self {
             GenericsSource::Item(id) => write!(f, "{}", id.with_ctx(ctx)),
             GenericsSource::Method(id, name) => write!(f, "{}::{name}", id.with_ctx(ctx)),
+            GenericsSource::TraitType(id, name) => {
+                write!(f, "{}::", id.with_ctx(ctx))?;
+                ctx.format_assoc_type_name(f, *id, *name)
+            }
             GenericsSource::Builtin => write!(f, "<builtin>"),
             GenericsSource::Other => write!(f, "<unknown>"),
         }
@@ -1038,6 +1067,12 @@ impl Display for IntegerTy {
     }
 }
 
+fn trait_impl_short_name<C: AstFormatter>(ctx: &C, impl_id: TraitImplId) -> Option<&Name> {
+    ctx.get_crate()
+        .and_then(|tr| tr.short_names.get(&ItemId::TraitImpl(impl_id)))
+        .filter(|name| matches!(name.name.first(), Some(PathElem::Ident(..))))
+}
+
 impl ItemMeta {
     /// Format the start of an item definition, up to the name.
     pub fn fmt_item_intro<C: AstFormatter>(
@@ -1048,15 +1083,27 @@ impl ItemMeta {
         id: impl Into<ItemId>,
     ) -> fmt::Result {
         let tab = ctx.indent();
-        let full_name = self.name.with_ctx(ctx);
-        let name = if let Some(tr) = ctx.get_crate()
-            && let Some(short_name) = tr.short_names.get(&id.into())
+        let id = id.into();
+        let mut name = &self.name;
+        let mut name_is_full = true;
+        if let Some(tr) = ctx.get_crate()
+            && let Some(short_name) = tr.short_names.get(&id)
         {
-            writeln!(f, "// Full name: {full_name}")?;
-            short_name.with_ctx(ctx)
-        } else {
-            full_name
+            name = short_name;
+            name_is_full = false;
+        } else if self
+            .name
+            .name
+            .iter()
+            .filter_map(|ne| ne.as_impl()?.as_trait())
+            .any(|impl_id| trait_impl_short_name(ctx, *impl_id).is_some())
+        {
+            name_is_full = false;
         };
+        if !name_is_full {
+            writeln!(f, "// Full name: {}", self.name.full_name(ctx))?;
+        }
+
         if let Some(id) = &self.lang_item {
             writeln!(f, "{tab}#[lang_item(\"{id}\")]")?;
         }
@@ -1064,7 +1111,7 @@ impl ItemMeta {
         if self.attr_info.public {
             write!(f, "pub ")?;
         }
-        write!(f, "{keyword} {name}")
+        write!(f, "{keyword} {}", name.with_ctx(ctx))
     }
 }
 
@@ -1127,6 +1174,25 @@ impl<C: AstFormatter> FmtWithCtx<C> for Name {
     }
 }
 
+impl Name {
+    /// Print the full name, which is different from printing a `Name` since that will use the
+    /// short name for impls.
+    fn full_name<'a, C: AstFormatter + 'a>(&'a self, ctx: &'a C) -> impl Display + 'a {
+        std::fmt::from_fn(move |f| {
+            let ctx = &ctx.no_generics();
+            let name = self
+                .name
+                .iter()
+                .map(|elem| match elem {
+                    PathElem::Impl(impl_elem) => Either::Left(impl_elem.with_ctx(ctx)),
+                    _ => Either::Right(elem.with_ctx(ctx)),
+                })
+                .format("::");
+            write!(f, "{name}")
+        })
+    }
+}
+
 impl<C: AstFormatter> FmtWithCtx<C> for NullOp {
     fn fmt_with_ctx(&self, ctx: &C, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let op = match self {
@@ -1168,7 +1234,7 @@ where
     U: FmtWithCtx<C>,
 {
     fn fmt_with_ctx(&self, ctx: &C, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} : {}", self.0.with_ctx(ctx), self.1.with_ctx(ctx))
+        write!(f, "{}: {}", self.0.with_ctx(ctx), self.1.with_ctx(ctx))
     }
 }
 
@@ -1183,6 +1249,11 @@ impl<C: AstFormatter> FmtWithCtx<C> for PathElem {
                 Ok(())
             }
             PathElem::Impl(impl_elem) => {
+                if let ImplElem::Trait(impl_id) = impl_elem
+                    && let Some(short_name) = trait_impl_short_name(ctx, *impl_id)
+                {
+                    return write!(f, "{}", short_name.with_ctx(ctx));
+                }
                 write!(f, "{}", impl_elem.with_ctx(ctx))
             }
             PathElem::Instantiated(binder) => {
@@ -1278,6 +1349,39 @@ impl<C: AstFormatter> FmtWithCtx<C> for Place {
 impl<C: AstFormatter> FmtWithCtx<C> for PolyTraitDeclRef {
     fn fmt_with_ctx(&self, ctx: &C, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.fmt_as_for(ctx))
+    }
+}
+
+impl PolyTraitDeclRef {
+    fn fmt_trait_proof<'a, C: AstFormatter + 'a>(
+        &'a self,
+        id: TraitClauseId,
+        value: Option<&'a TraitRef>,
+        ctx: &'a C,
+    ) -> impl Display + 'a {
+        std::fmt::from_fn(move |f| {
+            write!(
+                f,
+                "proof {}: {}",
+                id.format_as_implied(),
+                self.format_as_pred(ctx)
+            )?;
+            if let Some(value) = value {
+                write!(f, " = {}", value.with_ctx(ctx))?;
+            }
+            Ok(())
+        })
+    }
+
+    fn format_as_pred<'a, C: AstFormatter + 'a>(&'a self, ctx: &'a C) -> impl Display + 'a {
+        std::fmt::from_fn(move |f| {
+            let ctx = &ctx.push_bound_regions(&self.regions);
+            if !self.regions.is_empty() {
+                let regions = self.regions.iter().map(|r| r.with_ctx(ctx));
+                write!(f, "for<{}> ", regions.format(", "))?;
+            }
+            write!(f, "({})", self.skip_binder.format_as_pred(ctx))
+        })
     }
 }
 
@@ -1399,6 +1503,9 @@ impl<C: AstFormatter> FmtWithCtx<C> for ConstantExpr {
             ConstantExprKind::FnPtr(fp) => {
                 write!(f, "fnptr({})", fp.with_ctx(ctx))
             }
+            ConstantExprKind::TypeId(ty) => {
+                write!(f, "TypeId({})", ty.with_ctx(ctx))
+            }
             ConstantExprKind::PtrNoProvenance(v) => write!(f, "no-provenance {v}"),
             ConstantExprKind::RawMemory(bytes) => {
                 let bytes = bytes.iter().map(|v| v.with_ctx(ctx)).format(", ");
@@ -1507,7 +1614,7 @@ impl_display_via_ctx!(Rvalue);
 impl<C: AstFormatter> FmtWithCtx<C> for Rvalue {
     fn fmt_with_ctx(&self, ctx: &C, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Rvalue::Use(x) => write!(f, "{}", x.with_ctx(ctx)),
+            Rvalue::Use(x, _) => write!(f, "{}", x.with_ctx(ctx)),
             Rvalue::Ref {
                 place,
                 kind: borrow_kind,
@@ -1630,8 +1737,8 @@ impl<C: AstFormatter> FmtWithCtx<C> for Rvalue {
 impl Display for ScalarValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::result::Result<(), fmt::Error> {
         match self {
-            ScalarValue::Signed(ty, v) => write!(f, "{v} : {}", ty),
-            ScalarValue::Unsigned(ty, v) => write!(f, "{v} : {}", ty),
+            ScalarValue::Signed(ty, v) => write!(f, "{v}{ty}"),
+            ScalarValue::Unsigned(ty, v) => write!(f, "{v}{ty}"),
         }
     }
 }
@@ -1927,14 +2034,21 @@ impl<C: AstFormatter> FmtWithCtx<C> for Terminator {
 
 impl<C: AstFormatter> FmtWithCtx<C> for TraitParam {
     fn fmt_with_ctx(&self, ctx: &C, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let clause_id = self.clause_id.to_pretty_string();
-        let trait_ = self.trait_.with_ctx(ctx);
-        write!(f, "[{clause_id}")?;
+        write!(f, "{}", self.clause_id.format_as_required())?;
         if let Some(d @ 1..) = ctx.binder_depth().checked_sub(1) {
             write!(f, "_{d}")?;
         }
-        write!(f, "]: {trait_}")?;
-        Ok(())
+        write!(f, ": {}", self.trait_.format_as_pred(ctx))
+    }
+}
+
+impl TraitClauseId {
+    pub(crate) fn format_as_implied(self) -> impl Display {
+        std::fmt::from_fn(move |f| write!(f, "ImpliedClause{self}"))
+    }
+
+    pub(crate) fn format_as_required(self) -> impl Display {
+        std::fmt::from_fn(move |f| write!(f, "TraitClause{self}"))
     }
 }
 
@@ -1958,9 +2072,8 @@ impl<C: AstFormatter> FmtWithCtx<C> for TraitDecl {
             for c in &self.implied_clauses {
                 writeln!(
                     f,
-                    "{TAB_INCR}parent_clause{} : {}",
-                    c.clause_id,
-                    c.with_ctx(ctx)
+                    "{TAB_INCR}{}",
+                    c.trait_.fmt_trait_proof(c.clause_id, None, ctx)
                 )?;
             }
             for assoc_const in &self.consts {
@@ -1970,23 +2083,28 @@ impl<C: AstFormatter> FmtWithCtx<C> for TraitDecl {
             }
             for assoc_ty in &self.types {
                 let name = assoc_ty.name();
-                let (params, implied_clauses) = assoc_ty.fmt_split_with(ctx, |ctx, assoc_ty| {
-                    let mut out = String::new();
-                    let f = &mut out;
-                    if !assoc_ty.implied_clauses.is_empty() {
-                        let _ = writeln!(f, "\n{TAB_INCR}where",);
-                        for c in &assoc_ty.implied_clauses {
-                            let _ = writeln!(
-                                f,
-                                "{TAB_INCR}{TAB_INCR}implied_clause_{} : {}",
-                                c.clause_id,
-                                c.with_ctx(ctx)
-                            );
-                        }
-                    }
-                    out
-                });
-                writeln!(f, "{TAB_INCR}type {name}{params}{implied_clauses}")?;
+                let ctx = &ctx.push_binder(Cow::Borrowed(&assoc_ty.params));
+                let clauses = assoc_ty
+                    .params
+                    .formatted_clauses(ctx)
+                    .map(|x| x.to_string())
+                    .chain(assoc_ty.skip_binder.implied_clauses.iter().map(|clause| {
+                        clause
+                            .trait_
+                            .fmt_trait_proof(clause.clause_id, None, ctx)
+                            .to_string()
+                    }));
+                let params = if assoc_ty.params.has_explicits() {
+                    format!("<{}>", assoc_ty.params.formatted_params(ctx).format(", "))
+                } else {
+                    String::new()
+                };
+                write!(f, "{TAB_INCR}type {name}{params}")?;
+                if let Some(default) = &assoc_ty.skip_binder.default {
+                    write!(f, " = {}", default.value.with_ctx(ctx))?;
+                }
+                write!(f, "{}", fmt_where_clauses(clauses, TAB_INCR))?;
+                writeln!(f)?;
             }
             for method in self.methods() {
                 let name = method.name();
@@ -2022,40 +2140,50 @@ impl<C: AstFormatter> FmtWithCtx<C> for TraitDeclRef {
 impl TraitDeclRef {
     /// Split off the `Self` type. The returned `TraitDeclRef` has incorrect generics. The returned
     /// `Self` is `None` for monomorphized traits.
-    fn split_self(&self) -> (Option<Ty>, Self) {
+    pub fn split_self(&self) -> (Option<Ty>, Self) {
         let mut pred = self.clone();
         let self_ty = pred.generics.types.remove_and_shift_ids(TypeVarId::ZERO);
         (self_ty, pred)
     }
 
-    fn format_as_impl<C: AstFormatter>(&self, ctx: &C, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let (self_ty, pred) = self.split_self();
-        let pred = pred.with_ctx(ctx);
-        match self_ty {
-            Some(self_ty) => {
-                let self_ty = self_ty.with_ctx(ctx);
-                write!(f, "{pred} for {self_ty}")?;
+    fn format_as_pred<'a, C: AstFormatter + 'a>(&'a self, ctx: &'a C) -> impl Display + 'a {
+        std::fmt::from_fn(move |f| {
+            let (self_ty, pred) = self.split_self();
+            match self_ty {
+                Some(self_ty) => write!(f, "{}: {}", self_ty.with_ctx(ctx), pred.with_ctx(ctx)),
+                // Monomorphized traits don't have self types.
+                None => write!(f, "{}", pred.with_ctx(ctx)),
             }
-            // Monomorphized traits don't have self types.
-            None => write!(f, "{pred}")?,
-        }
-        Ok(())
+        })
+    }
+
+    fn format_as_impl<'a, C: AstFormatter>(&'a self, ctx: &'a C) -> impl Display + 'a {
+        std::fmt::from_fn(move |f| {
+            let (self_ty, pred) = self.split_self();
+            match self_ty {
+                Some(self_ty) => write!(f, "{} for {}", pred.with_ctx(ctx), self_ty.with_ctx(ctx)),
+                // Monomorphized traits don't have self types.
+                None => write!(f, "{}", pred.with_ctx(ctx)),
+            }
+        })
     }
 }
 
 impl<C: AstFormatter> FmtWithCtx<C> for TraitImpl {
     fn fmt_with_ctx(&self, ctx: &C, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let trait_id = self.impl_trait.id;
-        let full_name = self.item_meta.name.with_ctx(ctx);
-        writeln!(f, "// Full name: {full_name}")?;
+        writeln!(f, "// Full name: {}", self.item_meta.name.full_name(ctx))?;
 
         // Update the context
         let ctx = &ctx.set_generics(&self.generics);
 
         let (generics, clauses) = self.generics.fmt_with_ctx_with_trait_clauses(ctx);
-        write!(f, "impl{generics} ")?;
-        self.impl_trait.format_as_impl(ctx, f)?;
-        write!(f, "{clauses}")?;
+        let impl_trait = self.impl_trait.format_as_impl(ctx);
+        write!(f, "impl{generics}")?;
+        if let Some(short_name) = trait_impl_short_name(ctx, self.def_id) {
+            write!(f, " \"{}\"", short_name.with_ctx(ctx))?;
+        }
+        write!(f, " {impl_trait}{clauses}",)?;
 
         let newline = if clauses.is_empty() {
             " ".to_string()
@@ -2069,9 +2197,14 @@ impl<C: AstFormatter> FmtWithCtx<C> for TraitImpl {
             || !self.types.is_empty()
             || !self.methods.is_empty();
         if any_item {
-            for (i, c) in self.implied_trait_refs.iter().enumerate() {
-                let i = TraitClauseId::new(i);
-                writeln!(f, "{TAB_INCR}parent_clause{i} = {}", c.with_ctx(ctx))?;
+            for (id, trait_ref) in self.implied_trait_refs.iter_enumerated() {
+                writeln!(
+                    f,
+                    "{TAB_INCR}{}",
+                    trait_ref
+                        .trait_decl_ref
+                        .fmt_trait_proof(id, Some(trait_ref), ctx)
+                )?;
             }
             for (const_id, global) in self.consts.iter_enumerated() {
                 write!(f, "{TAB_INCR}const ")?;
@@ -2079,12 +2212,34 @@ impl<C: AstFormatter> FmtWithCtx<C> for TraitImpl {
                 writeln!(f, " = {}", global.with_ctx(ctx))?;
             }
             for (type_id, assoc_ty) in self.types.iter_enumerated() {
-                // TODO: implied trait refs
-                let (params, ty) = assoc_ty
-                    .fmt_split_with(ctx, |ctx, assoc_ty| assoc_ty.value.to_string_with_ctx(ctx));
+                let ctx = &ctx.push_binder(Cow::Borrowed(&assoc_ty.params));
+                let params = if assoc_ty.params.has_explicits() {
+                    format!("<{}>", assoc_ty.params.formatted_params(ctx).format(", "))
+                } else {
+                    String::new()
+                };
+                let ty = assoc_ty.skip_binder.value.with_ctx(ctx);
+                let clauses = assoc_ty
+                    .params
+                    .formatted_clauses(ctx)
+                    .map(|x| x.to_string())
+                    .chain(
+                        assoc_ty
+                            .skip_binder
+                            .implied_trait_refs
+                            .iter_enumerated()
+                            .map(|(id, trait_ref)| {
+                                trait_ref
+                                    .trait_decl_ref
+                                    .fmt_trait_proof(id, Some(trait_ref), ctx)
+                                    .to_string()
+                            }),
+                    );
                 write!(f, "{TAB_INCR}type ")?;
                 ctx.format_assoc_type_name(f, trait_id, type_id)?;
-                writeln!(f, "{params} = {ty}",)?;
+                write!(f, "{params} = {ty}")?;
+                write!(f, "{}", fmt_where_clauses(clauses, TAB_INCR))?;
+                writeln!(f)?;
             }
             for (method_id, bound_fn) in self.methods.iter_enumerated() {
                 let (params, fn_ref) = bound_fn.fmt_split(ctx);
@@ -2129,25 +2284,21 @@ impl<C: AstFormatter> FmtWithCtx<C> for TraitRef {
             TraitRefKind::SelfId => write!(f, "Self"),
             TraitRefKind::ParentClause(sub, clause_id) => {
                 let sub = sub.with_ctx(ctx);
-                write!(f, "{sub}::parent_clause{clause_id}")
+                write!(f, "{sub}::{}", clause_id.format_as_implied())
             }
             TraitRefKind::ItemClause(sub, type_id, clause_id) => {
-                write!(f, "({}::", sub.with_ctx(ctx))?;
+                write!(f, "{}::", sub.with_ctx(ctx))?;
                 ctx.format_assoc_type_name(f, sub.trait_id(), *type_id)?;
-                // Using on purpose `to_pretty_string` instead of `with_ctx`: the clause is local
-                // to the associated type, so it should not be referenced in the current context.
-                write!(f, "::[{}])", clause_id.to_pretty_string())
+                write!(f, "::{}", clause_id.format_as_implied())
             }
             TraitRefKind::TraitImpl(impl_ref) => {
                 write!(f, "{}", impl_ref.with_ctx(ctx))
             }
             TraitRefKind::Clause(id) => write!(f, "{}", id.with_ctx(ctx)),
             TraitRefKind::BuiltinOrAuto { types, .. } => {
-                write!(f, "{{built_in impl ")?;
                 let bound_ctx = &ctx.push_bound_regions(&self.trait_decl_ref.regions);
-                self.trait_decl_ref
-                    .skip_binder
-                    .format_as_impl(bound_ctx, f)?;
+                let impl_trait = self.trait_decl_ref.skip_binder.format_as_impl(bound_ctx);
+                write!(f, "{{built_in impl {impl_trait}")?;
                 if !types.is_empty() {
                     let trait_id = self.trait_decl_ref.skip_binder.id;
                     let types = types
@@ -2221,9 +2372,10 @@ impl<C: AstFormatter> FmtWithCtx<C> for Ty {
             TyKind::Slice(ty) => {
                 write!(f, "[{}]", ty.with_ctx(ctx))
             }
-            TyKind::TraitType(trait_ref, type_id) => {
+            TyKind::TraitType(trait_ref, type_id, generics) => {
                 write!(f, "{}::", trait_ref.with_ctx(ctx))?;
-                ctx.format_assoc_type_name(f, trait_ref.trait_id(), *type_id)
+                ctx.format_assoc_type_name(f, trait_ref.trait_id(), *type_id)?;
+                write!(f, "{}", generics.with_ctx(ctx))
             }
             TyKind::DynTrait(pred) => {
                 write!(f, "(dyn {})", pred.with_ctx(ctx))

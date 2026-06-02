@@ -108,7 +108,8 @@ pub struct PredicateSearcher<'tcx> {
     /// accessible.
     implicit_self_clause: bool,
     /// Cache the `ItemRef` translations. This is fast because `GenericArgsRef` is interned.
-    pub(crate) item_refs_cache: HashMap<(DefId, ty::GenericArgsRef<'tcx>, bool), ItemRef<'tcx>>,
+    pub(crate) item_refs_cache:
+        HashMap<(DefId, ty::GenericArgsRef<'tcx>, AssocItemResolution), ItemRef<'tcx>>,
     /// Cache of trait refs to resolved trait proofs.
     trait_proofs_cache: HashMap<ty::PolyTraitRef<'tcx>, TraitProof<'tcx>>,
 }
@@ -120,10 +121,7 @@ impl<'tcx> PredicateSearcher<'tcx> {
         let initial_self_pred = initial_self_pred(tcx, owner_id);
         let mut out = Self {
             elab_ctx,
-            typing_env: TypingEnv {
-                param_env: tcx.param_env(owner_id),
-                typing_mode: TypingMode::PostAnalysis,
-            },
+            typing_env: TypingEnv::new(tcx.param_env(owner_id), TypingMode::PostAnalysis),
             candidates: Default::default(),
             implicit_self_clause: initial_self_pred.is_some(),
             item_refs_cache: Default::default(),
@@ -219,10 +217,17 @@ impl<'tcx> PredicateSearcher<'tcx> {
         let elab_ctx = self.elab_ctx;
         let tcx = self.elab_ctx.tcx;
         // Note: We skip a binder but rebind it just after.
-        let TyKind::Alias(AliasTyKind::Projection, alias_ty) = ty.skip_binder().kind() else {
+        let TyKind::Alias(
+            alias @ ty::AliasTy {
+                kind: AliasTyKind::Projection { def_id, .. },
+                args,
+                ..
+            },
+        ) = ty.skip_binder().kind()
+        else {
             return;
         };
-        let trait_ref = ty.rebind(alias_ty.trait_ref(tcx)).upcast(tcx);
+        let trait_ref = ty.rebind(alias.trait_ref(tcx)).upcast(tcx);
 
         // The predicate we're looking for is is `<T as Trait>::Type: OtherTrait`. We try to solve
         // `T as Trait` and add all the bounds on `Trait::Type` to our context.
@@ -230,14 +235,18 @@ impl<'tcx> PredicateSearcher<'tcx> {
         if matches!(proof.kind, TraitProofKind::Error(_)) {
             return;
         }
-        let item_ref = self.resolve_item_reference(alias_ty.def_id, alias_ty.args, true);
+        let item_ref = self.resolve_item_reference(*def_id, args, AssocItemResolution::ImplItem);
 
         // The bounds that hold on the associated type.
-        let item_bounds = ItemPredicates::implied(self.elab_ctx, alias_ty.def_id);
+        let item_bounds = ItemPredicates::implied(self.elab_ctx, *def_id);
         let item_bounds = item_bounds
             .iter_trait_clauses()
             // Substitute the item generics
-            .map(|(_, tref)| EarlyBinder::bind(tref).instantiate(tcx, alias_ty.args))
+            .map(|(_, tref)| {
+                EarlyBinder::bind(tref)
+                    .instantiate(tcx, args)
+                    .skip_normalization()
+            })
             .enumerate();
 
         // Add all the bounds on the corresponding associated item.
@@ -318,9 +327,11 @@ impl<'tcx> PredicateSearcher<'tcx> {
                 impl_def_id,
                 args: generics,
                 ..
-            }) => {
-                TraitProofKind::Concrete(self.resolve_item_reference(impl_def_id, generics, true))
-            }
+            }) => TraitProofKind::Concrete(self.resolve_item_reference(
+                impl_def_id,
+                generics,
+                AssocItemResolution::ImplItem,
+            )),
             ImplSource::Param(_) => match self.resolve_local(erased_tref.upcast(tcx)) {
                 Some(candidate) => candidate.proof.kind.clone(),
                 None => {
@@ -344,9 +355,9 @@ impl<'tcx> PredicateSearcher<'tcx> {
                     .filter_map(|assoc| {
                         let ty =
                             Ty::new_projection(tcx, assoc.def_id, erased_tref.skip_binder().args);
-                        let ty = crate::erase_and_norm(tcx, self.typing_env, ty);
-                        if let TyKind::Alias(_, alias_ty) = ty.kind()
-                            && alias_ty.def_id == assoc.def_id
+                        let ty = crate::erase_and_norm(tcx, self.typing_env, Unnormalized::new(ty));
+                        if let TyKind::Alias(alias_ty) = ty.kind()
+                            && alias_ty.kind.def_id() == assoc.def_id
                         {
                             // Couldn't normalize the type to anything different than itself;
                             // this must be a built-in associated type such as
@@ -482,7 +493,11 @@ impl<'tcx> PredicateSearcher<'tcx> {
         predicates
             .iter_trait_clauses()
             // Substitute the item generics
-            .map(|(_, trait_ref)| EarlyBinder::bind(trait_ref).instantiate(tcx, generics))
+            .map(|(_, trait_ref)| {
+                EarlyBinder::bind(trait_ref)
+                    .instantiate(tcx, generics)
+                    .skip_normalization()
+            })
             // Resolve
             .map(|trait_ref| self.resolve(&trait_ref))
             .collect()
